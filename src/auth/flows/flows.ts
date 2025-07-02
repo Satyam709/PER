@@ -1,8 +1,10 @@
+import path from "path";
 import { CodeChallengeMethod, GenerateAuthUrlOpts } from "google-auth-library";
 import { OAuth2Client } from "google-auth-library";
 import vscode from "vscode";
 import { PackageInfo } from "../../config/package-info";
 import { ExtensionUriHandler } from "../../system/uri-handler";
+import { LocalServerFlow } from "./loopback";
 import { ProxiedRedirectFlow } from "./proxied";
 
 /**
@@ -11,7 +13,7 @@ import { ProxiedRedirectFlow } from "./proxied";
  * This interface is used to determine whether a specific OAuth2 flow can be
  * used in a given environment, such as a web worker or remote extension host.
  */
-export interface OAuth2FlowDescriptor {
+export interface OAuth2EnvCapabilities {
   readonly supportsWebWorkerExtensionHost: boolean;
   readonly supportsRemoteExtensionHost: boolean;
 }
@@ -35,16 +37,18 @@ export interface FlowResult {
   code: string;
   /** The redirect URI that should be used following token retrieval. */
   redirectUri?: string;
-  /** An optional disposable to be disposed of once the flow is complete. */
-  disposable?: vscode.Disposable;
 }
 
 /**
  * An OAuth2 flow that can be triggered to obtain an authorization code.
  */
 export interface OAuth2Flow {
-  options: OAuth2FlowDescriptor;
+  /** Describes the environmental capabilities of the flow. */
+  options: OAuth2EnvCapabilities;
+  /** Triggers the OAuth2 flow. */
   trigger(options: OAuth2TriggerOptions): Promise<FlowResult>;
+  /** Disposes of the flow and cleans up resources. */
+  dispose?(): void;
 }
 
 export const DEFAULT_AUTH_URL_OPTS: GenerateAuthUrlOpts = {
@@ -68,6 +72,11 @@ export class OAuth2FlowProvider {
   // TODO: Look at environment capabilities and filter flows accordingly.
   getSupportedFlows(): OAuth2Flow[] {
     return [
+      new LocalServerFlow(
+        this.vs,
+        path.join(__dirname, "auth/media"),
+        this.oAuth2Client,
+      ),
       new ProxiedRedirectFlow(
         this.vs,
         this.packageInfo,
