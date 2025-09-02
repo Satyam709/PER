@@ -5,7 +5,11 @@
  */
 
 import vscode, { Disposable } from "vscode";
-import { OverrunPolicy, SequentialTaskRunner } from "../../common/task-runner";
+import {
+  OverrunPolicy,
+  SequentialTaskRunner,
+  StartMode,
+} from "../../common/task-runner";
 import { Toggleable } from "../../common/toggleable";
 import { CcuInfo } from "../api";
 import { ColabClient } from "../client";
@@ -40,9 +44,6 @@ export class ConsumptionPoller implements Toggleable, Disposable {
       this.poll.bind(this),
       OverrunPolicy.AbandonAndRun,
     );
-    // TODO: Remove once toggle is managed by a higher level which has
-    // visibility on the authorization state.
-    this.runner.start();
   }
 
   dispose(): void {
@@ -55,7 +56,7 @@ export class ConsumptionPoller implements Toggleable, Disposable {
    */
   on(): void {
     this.assertNotDisposed();
-    this.runner.start();
+    this.runner.start(StartMode.Immediately);
   }
 
   /**
