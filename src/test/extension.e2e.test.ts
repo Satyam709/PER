@@ -215,10 +215,20 @@ describe("Colab Extension", function () {
         until.urlContains("accounts.google.com/signin/oauth/id"),
         ELEMENT_WAIT_MS,
       );
-      const continueButton = await oauthDriver.findElement(
+      await waitAndClick(
+        oauthDriver,
         By.xpath("//span[text()='Continue']"),
+        '"Continue" button not visible on ID screen',
       );
-      await continueButton.click();
+
+      // Click Allow or Continue to authorize the scope (handles both v1 and v2
+      // consent screens).
+      await oauthDriver.wait(until.urlContains("consent"), ELEMENT_WAIT_MS);
+      await waitAndClick(
+        oauthDriver,
+        By.xpath("//span[text()='Allow' or text()='Continue']"),
+        '"Allow" or "Continue" button not visible on consent screen',
+      );
 
       // Check that the test account's authenticated. Close the browser window.
       await oauthDriver.wait(
@@ -269,4 +279,21 @@ async function notebookLoaded(driver: WebDriver): Promise<void> {
     ELEMENT_WAIT_MS,
     "Notebook editor did not load in time",
   );
+}
+
+/**
+ * Waits for an element to be visible and clicks it.
+ */
+async function waitAndClick(
+  driver: WebDriver,
+  locator: By,
+  errorMsg: string,
+): Promise<void> {
+  await driver.wait(
+    until.elementIsVisible(await driver.findElement(locator)),
+    ELEMENT_WAIT_MS,
+    errorMsg,
+  );
+  const element = await driver.findElement(locator);
+  await element.click();
 }
