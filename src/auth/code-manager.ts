@@ -102,7 +102,7 @@ function waitForCancellation(
   let listener: vscode.Disposable;
   const promise = new Promise<never>((_, reject) => {
     listener = token.onCancellationRequested(() => {
-      reject(new Error("Authentication was cancelled by the user."));
+      reject(new Error("Authentication was cancelled by the user"));
     });
   });
 
