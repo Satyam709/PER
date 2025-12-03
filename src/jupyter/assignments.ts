@@ -15,6 +15,7 @@ import fetch, {
 import vscode from "vscode";
 import {
   Assignment,
+  ListedAssignment,
   RuntimeProxyInfo,
   Variant,
   variantToMachineType,
@@ -26,15 +27,19 @@ import {
   NotFoundError,
   TooManyAssignmentsError,
 } from "../colab/client";
+import { REMOVE_SERVER } from "../colab/commands/constants";
 import {
   COLAB_CLIENT_AGENT_HEADER,
   COLAB_RUNTIME_PROXY_TOKEN_HEADER,
 } from "../colab/headers";
 import {
+  AllServers,
   ColabAssignedServer,
   ColabJupyterServer,
   ColabServerDescriptor,
   DEFAULT_CPU_SERVER,
+  isColabAssignedServer,
+  UnownedServer,
 } from "./servers";
 import { ServerStorage } from "./storage";
 
@@ -134,29 +139,8 @@ export class AssignmentManager implements vscode.Disposable {
     if (stored.length === 0) {
       return;
     }
-    const live = new Set(
-      (await this.client.listAssignments(signal)).map((a) => a.endpoint),
-    );
-    const removed: ColabAssignedServer[] = [];
-    const reconciled: ColabAssignedServer[] = [];
-    for (const s of stored) {
-      if (live.has(s.endpoint)) {
-        reconciled.push(s);
-      } else {
-        removed.push(s);
-      }
-    }
-    if (stored.length === reconciled.length) {
-      return;
-    }
-
-    await this.storage.clear();
-    await this.storage.store(reconciled);
-    this.assignmentChange.fire({
-      added: [],
-      removed: removed.map((s) => ({ server: s, userInitiated: false })),
-      changed: [],
-    });
+    const live = await this.client.listAssignments(signal);
+    await this.reconcileStoredServers(stored, live);
   }
 
   /**
@@ -168,7 +152,7 @@ export class AssignmentManager implements vscode.Disposable {
   }
 
   /**
-   * Retrieves the list of servers that have been assigned.
+   * Retrieves the list of servers that have been assigned in VS Code.
    *
    * @returns A list of assigned servers. Connection information is included
    * and can be refreshed by calling {@link refreshConnection}.
@@ -184,6 +168,50 @@ export class AssignmentManager implements vscode.Disposable {
         fetch: colabProxyFetch(server.connectionInformation.token),
       },
     }));
+  }
+
+  /**
+   * Retrieves the list of all servers that are assigned both in and outside VS
+   * Code.
+   */
+  async getAllServers(signal?: AbortSignal): Promise<AllServers> {
+    const allAssignments = await this.client.listAssignments(signal);
+
+    let storedServers = await this.storage.list();
+    if (storedServers.length > 0) {
+      storedServers = await this.reconcileStoredServers(
+        storedServers,
+        allAssignments,
+      );
+    }
+
+    const storedEndpointSet = new Set(storedServers.map((s) => s.endpoint));
+    const unownedServers = await Promise.all(
+      allAssignments
+        .filter((a) => !storedEndpointSet.has(a.endpoint))
+        .map(async (a) => {
+          // For any remote servers created in Colab web UI, assuming there is
+          // only one session per assignment.
+          const sessions = await this.client.listSessions(a.endpoint, signal);
+          return {
+            label: sessions[0]?.name || UNKNOWN_REMOTE_SERVER_NAME,
+            endpoint: a.endpoint,
+            variant: a.variant,
+            accelerator: a.accelerator,
+          };
+        }),
+    );
+
+    return {
+      assigned: storedServers.map((server) => ({
+        ...server,
+        connectionInformation: {
+          ...server.connectionInformation,
+          fetch: colabProxyFetch(server.connectionInformation.token),
+        },
+      })),
+      unowned: unownedServers,
+    };
   }
 
   /**
@@ -340,29 +368,36 @@ export class AssignmentManager implements vscode.Disposable {
   /**
    * Unassigns the given server.
    *
-   * Deletes all kernel sessions for the specified server before
-   * unassigning. Only unassigns if all session deletions succeed.
+   * For `ColabAssignedServer` assigned by VS Code, deletes all kernel sessions
+   * for the specified server before unassigning. Only unassigns if all session
+   * deletions succeed.
+   *
+   * For `UnownedServer` assigned outside VS Code, simply unassigns the
+   * server without deleting the sessions. This is because we don't have access
+   * to delete those sessions and it's not mandatory to do so.
    *
    * @param server - The server to remove.
    */
   async unassignServer(
-    server: ColabAssignedServer,
+    server: ColabAssignedServer | UnownedServer,
     signal?: AbortSignal,
   ): Promise<void> {
-    const removed = await this.storage.remove(server.id);
-    if (!removed) {
-      return;
+    if (isColabAssignedServer(server)) {
+      const removed = await this.storage.remove(server.id);
+      if (!removed) {
+        return;
+      }
+      this.assignmentChange.fire({
+        added: [],
+        removed: [{ server, userInitiated: true }],
+        changed: [],
+      });
+      await Promise.all(
+        (await this.client.listSessions(server, signal)).map((session) =>
+          this.client.deleteSession(server, session.id, signal),
+        ),
+      );
     }
-    this.assignmentChange.fire({
-      added: [],
-      removed: [{ server, userInitiated: true }],
-      changed: [],
-    });
-    await Promise.all(
-      (await this.client.listSessions(server, signal)).map((session) =>
-        this.client.deleteSession(server, session.id, signal),
-      ),
-    );
     await this.client.unassign(server.endpoint, signal);
   }
 
@@ -402,6 +437,34 @@ export class AssignmentManager implements vscode.Disposable {
     return `${labelBase} (${placeholderIdx.toString()})`;
   }
 
+  private async reconcileStoredServers(
+    storedServers: ColabAssignedServer[],
+    liveAssignments: ListedAssignment[],
+  ): Promise<ColabAssignedServer[]> {
+    const liveEndpointSet = new Set(liveAssignments.map((a) => a.endpoint));
+    const removed: ColabAssignedServer[] = [];
+    const reconciled: ColabAssignedServer[] = [];
+    for (const s of storedServers) {
+      if (liveEndpointSet.has(s.endpoint)) {
+        reconciled.push(s);
+      } else {
+        removed.push(s);
+      }
+    }
+    if (storedServers.length === reconciled.length) {
+      return reconciled;
+    }
+
+    await this.storage.clear();
+    await this.storage.store(reconciled);
+    this.assignmentChange.fire({
+      added: [],
+      removed: removed.map((s) => ({ server: s, userInitiated: false })),
+      changed: [],
+    });
+    return reconciled;
+  }
+
   private toAssignedServer(
     server: ColabJupyterServer,
     endpoint: string,
@@ -435,22 +498,13 @@ export class AssignmentManager implements vscode.Disposable {
 
   private async notifyMaxAssignmentsExceeded() {
     // TODO: Account for subscription tiers in actions.
-    // TODO: Account for the number of assignments from the VS Code and Colab
-    // UIs in the error message and actions.
     const selectedAction = await this.vs.window.showErrorMessage(
       "Unable to assign server. You have too many, remove one to continue.",
-      (await this.hasAssignedServer())
-        ? AssignmentsExceededActions.REMOVE_SERVER
-        : AssignmentsExceededActions.REMOVE_SERVER_COLAB_WEB,
+      AssignmentsExceededActions.REMOVE_SERVER,
     );
     switch (selectedAction) {
       case AssignmentsExceededActions.REMOVE_SERVER:
-        this.vs.commands.executeCommand("colab.removeServer");
-        return;
-      case AssignmentsExceededActions.REMOVE_SERVER_COLAB_WEB:
-        this.vs.env.openExternal(
-          this.vs.Uri.parse("https://colab.research.google.com/"),
-        );
+        this.vs.commands.executeCommand(REMOVE_SERVER.id);
         return;
       default:
         return;
@@ -505,10 +559,11 @@ export class AssignmentManager implements vscode.Disposable {
 
 enum AssignmentsExceededActions {
   REMOVE_SERVER = "Remove Server",
-  REMOVE_SERVER_COLAB_WEB = "Remove Server at Colab Web",
 }
 
 const LEARN_MORE = "Learn More";
+
+const UNKNOWN_REMOTE_SERVER_NAME = "Untitled";
 
 /**
  * Creates a fetch function that adds the Colab runtime proxy token as a header.

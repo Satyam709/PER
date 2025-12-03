@@ -24,6 +24,7 @@ import {
   NotFoundError,
   TooManyAssignmentsError,
 } from "../colab/client";
+import { REMOVE_SERVER } from "../colab/commands/constants";
 import {
   COLAB_CLIENT_AGENT_HEADER,
   COLAB_RUNTIME_PROXY_TOKEN_HEADER,
@@ -447,6 +448,187 @@ describe("AssignmentManager", () => {
     });
   });
 
+  describe("getAllServers", () => {
+    const endpointWithName = "test-endpoint-with-name";
+    const endpointWithoutName = "test-endpoint-without-name";
+    const endpointWithoutSession = "test-endpoint-without-session";
+    const assignmentWithName = {
+      endpoint: endpointWithName,
+      variant: Variant.DEFAULT,
+      machineShape: Shape.STANDARD,
+      accelerator: "",
+    };
+    const assignmentWithoutName = {
+      endpoint: endpointWithoutName,
+      variant: Variant.DEFAULT,
+      machineShape: Shape.STANDARD,
+      accelerator: "",
+    };
+    const assignmentWithoutSession = {
+      endpoint: endpointWithoutSession,
+      variant: Variant.DEFAULT,
+      machineShape: Shape.STANDARD,
+      accelerator: "",
+    };
+    const defaultSession = {
+      id: "",
+      path: "",
+      type: "",
+      kernel: {
+        lastActivity: "",
+        executionState: "",
+        id: "",
+        name: "",
+        connections: 1,
+      },
+    };
+
+    it("returns both assigned and unowned servers", async () => {
+      colabClientStub.listAssignments.resolves([
+        assignmentWithName,
+        assignmentWithoutName,
+        assignmentWithoutSession,
+      ]);
+      colabClientStub.listSessions.withArgs(endpointWithName).resolves([
+        {
+          ...defaultSession,
+          name: "test-session-name",
+        },
+      ]);
+      colabClientStub.listSessions
+        .withArgs(endpointWithoutSession)
+        .resolves([]);
+      const assignedServer = {
+        ...defaultServer,
+        endpoint: endpointWithoutName,
+      };
+      await serverStorage.store([assignedServer]);
+
+      const results = await assignmentManager.getAllServers();
+
+      expect(stripFetches([...results.assigned])).to.deep.equal([
+        assignedServer,
+      ]);
+      expect(results.unowned).to.deep.equal([
+        {
+          label: "test-session-name",
+          endpoint: endpointWithName,
+          variant: Variant.DEFAULT,
+          accelerator: "",
+        },
+        {
+          label: "Untitled",
+          endpoint: endpointWithoutSession,
+          variant: Variant.DEFAULT,
+          accelerator: "",
+        },
+      ]);
+    });
+
+    it("returns only unowned servers when no server is assigned in VS Code", async () => {
+      colabClientStub.listAssignments.resolves([
+        assignmentWithName,
+        assignmentWithoutName,
+        assignmentWithoutSession,
+      ]);
+      colabClientStub.listSessions.withArgs(endpointWithName).resolves([
+        {
+          ...defaultSession,
+          name: "test-session-name",
+        },
+      ]);
+      colabClientStub.listSessions.withArgs(endpointWithoutName).resolves([
+        {
+          ...defaultSession,
+          name: "",
+        },
+      ]);
+      colabClientStub.listSessions
+        .withArgs(endpointWithoutSession)
+        .resolves([]);
+      await serverStorage.store([]);
+
+      const results = await assignmentManager.getAllServers();
+
+      expect(results).to.deep.equal({
+        assigned: [],
+        unowned: [
+          {
+            label: "test-session-name",
+            endpoint: endpointWithName,
+            variant: Variant.DEFAULT,
+            accelerator: "",
+          },
+          {
+            label: "Untitled",
+            endpoint: endpointWithoutName,
+            variant: Variant.DEFAULT,
+            accelerator: "",
+          },
+          {
+            label: "Untitled",
+            endpoint: endpointWithoutSession,
+            variant: Variant.DEFAULT,
+            accelerator: "",
+          },
+        ],
+      });
+    });
+
+    it("returns only assigned servers when no server is unowned", async () => {
+      colabClientStub.listAssignments.resolves([
+        assignmentWithName,
+        assignmentWithoutName,
+        assignmentWithoutSession,
+      ]);
+      const assignedServer1 = {
+        ...defaultServer,
+        endpoint: endpointWithName,
+      };
+      const assignedServer2 = {
+        ...defaultServer,
+        endpoint: endpointWithoutName,
+      };
+      const assignedServer3 = {
+        ...defaultServer,
+        endpoint: endpointWithoutSession,
+      };
+      await serverStorage.store([
+        assignedServer1,
+        assignedServer2,
+        assignedServer3,
+      ]);
+
+      const results = await assignmentManager.getAllServers();
+
+      expect(stripFetches([...results.assigned])).to.deep.equal([
+        assignedServer1,
+        assignedServer2,
+        assignedServer3,
+      ]);
+      expect(results.unowned).to.be.empty;
+    });
+
+    it("reconciles assigned servers before returning", async () => {
+      colabClientStub.listAssignments.resolves([assignmentWithName]);
+      const assignedServer = {
+        ...defaultServer,
+        endpoint: endpointWithName,
+      };
+      const noLongerAssignedServer = {
+        ...defaultServer,
+        endpoint: "no-longer-assigned",
+      };
+      await serverStorage.store([assignedServer, noLongerAssignedServer]);
+
+      const results = await assignmentManager.getAllServers();
+
+      expect(stripFetches([...results.assigned])).to.deep.equal([
+        assignedServer,
+      ]);
+    });
+  });
+
   describe("getLastKnownAssignedServers", () => {
     it("returns an empty list when there are no stored servers", async () => {
       expect(
@@ -598,8 +780,7 @@ describe("AssignmentManager", () => {
         );
       });
 
-      it("presents an action to remove servers from VS Code when theres at least 1 VS Code assignment", async () => {
-        sinon.stub(assignmentManager, "hasAssignedServer").resolves(true);
+      it("presents an action to remove servers", async () => {
         (vsCodeStub.window.showErrorMessage as sinon.SinonStub).resolves(
           "Remove Server",
         );
@@ -610,25 +791,7 @@ describe("AssignmentManager", () => {
 
         sinon.assert.calledOnceWithExactly(
           vsCodeStub.commands.executeCommand,
-          "colab.removeServer",
-        );
-      });
-
-      it("presents an action to remove servers from Colab when there are 0 VS Code assignments", async () => {
-        sinon.stub(assignmentManager, "hasAssignedServer").resolves(false);
-        (vsCodeStub.window.showErrorMessage as sinon.SinonStub).resolves(
-          "Remove Server at Colab Web",
-        );
-
-        await expect(
-          assignmentManager.assignServer(defaultAssignmentDescriptor),
-        ).to.eventually.be.rejectedWith(TooManyAssignmentsError);
-
-        sinon.assert.calledOnceWithMatch(
-          vsCodeStub.env.openExternal,
-          sinon.match(function (url: Uri) {
-            return url.toString() === "https://colab.research.google.com/";
-          }),
+          REMOVE_SERVER.id,
         );
       });
     });
@@ -698,7 +861,7 @@ describe("AssignmentManager", () => {
       sinon.assert.notCalled(assignmentChangeListener);
     });
 
-    describe("when the server exists", () => {
+    describe("when a server created in VS Code exists", () => {
       beforeEach(async () => {
         await serverStorage.store([defaultServer]);
       });
@@ -767,6 +930,23 @@ describe("AssignmentManager", () => {
         sinon.assert.calledOnceWithMatch(
           vsCodeStub.window.showInformationMessage,
           sinon.match(/notebooks Colab GPU A100 was/),
+        );
+      });
+    });
+
+    describe("when an unowned server exists", () => {
+      it("unassigns the server", async () => {
+        const remoteServer = {
+          endpoint: "test-endpoint",
+          label: "name",
+          variant: Variant.DEFAULT,
+        };
+
+        await assignmentManager.unassignServer(remoteServer);
+
+        sinon.assert.calledOnceWithMatch(
+          colabClientStub.unassign,
+          remoteServer.endpoint,
         );
       });
     });

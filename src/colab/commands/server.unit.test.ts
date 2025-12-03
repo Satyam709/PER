@@ -169,7 +169,10 @@ describe("Server Commands", () => {
     });
 
     it("does not open the Quick Pick when no servers are assigned", async () => {
-      assignmentManagerStub.getAssignedServers.resolves([]);
+      assignmentManagerStub.getAllServers.resolves({
+        assigned: [],
+        unowned: [],
+      });
 
       await removeServer(vsCodeStub.asVsCode(), assignmentManagerStub);
 
@@ -177,19 +180,85 @@ describe("Server Commands", () => {
     });
 
     describe("when servers are assigned", () => {
-      it("lists servers for selection", async () => {
-        const additionalServer = { ...defaultServer, label: "bar" };
-        assignmentManagerStub.getAssignedServers.resolves([
-          defaultServer,
-          additionalServer,
-        ]);
+      it("lists mixed servers with a separator", async () => {
+        const additionalVsCodeServer = { ...defaultServer, label: "bar" };
+        const nonVsCodeServer = {
+          label: "test.ipynb",
+          endpoint: "test-endpoint",
+          variant: Variant.DEFAULT,
+        };
+        assignmentManagerStub.getAllServers.resolves({
+          assigned: [defaultServer, additionalVsCodeServer],
+          unowned: [nonVsCodeServer],
+        });
 
         void removeServer(vsCodeStub.asVsCode(), assignmentManagerStub);
         await quickPickStub.nextShow();
 
         expect(quickPickStub.items).to.deep.equal([
-          { label: defaultServer.label, value: defaultServer },
-          { label: additionalServer.label, value: additionalServer },
+          {
+            label: defaultServer.label,
+            value: defaultServer,
+            description: "VS Code Server",
+          },
+          {
+            label: additionalVsCodeServer.label,
+            value: additionalVsCodeServer,
+            description: "VS Code Server",
+          },
+          { label: "", kind: -1 },
+          {
+            label: nonVsCodeServer.label,
+            value: nonVsCodeServer,
+            description: "Colab Web Server",
+          },
+        ]);
+      });
+
+      it("lists VS Code servers without separator", async () => {
+        const additionalVsCodeServer = { ...defaultServer, label: "bar" };
+        assignmentManagerStub.getAllServers.resolves({
+          assigned: [defaultServer, additionalVsCodeServer],
+          unowned: [],
+        });
+
+        void removeServer(vsCodeStub.asVsCode(), assignmentManagerStub);
+        await quickPickStub.nextShow();
+
+        expect(quickPickStub.items).to.deep.equal([
+          {
+            label: defaultServer.label,
+            value: defaultServer,
+            description: "VS Code Server",
+          },
+          {
+            label: additionalVsCodeServer.label,
+            value: additionalVsCodeServer,
+            description: "VS Code Server",
+          },
+        ]);
+      });
+
+      it("lists Colab web servers without separator", async () => {
+        const nonVsCodeServer = {
+          label: "test.ipynb",
+          endpoint: "test-endpoint",
+          variant: Variant.DEFAULT,
+        };
+        assignmentManagerStub.getAllServers.resolves({
+          assigned: [],
+          unowned: [nonVsCodeServer],
+        });
+
+        void removeServer(vsCodeStub.asVsCode(), assignmentManagerStub);
+        await quickPickStub.nextShow();
+
+        expect(quickPickStub.items).to.deep.equal([
+          {
+            label: nonVsCodeServer.label,
+            value: nonVsCodeServer,
+            description: "Colab Web Server",
+          },
         ]);
       });
 
@@ -197,7 +266,10 @@ describe("Server Commands", () => {
         let remove: Promise<void>;
 
         beforeEach(async () => {
-          assignmentManagerStub.getAssignedServers.resolves([defaultServer]);
+          assignmentManagerStub.getAllServers.resolves({
+            assigned: [defaultServer],
+            unowned: [],
+          });
           remove = removeServer(vsCodeStub.asVsCode(), assignmentManagerStub);
           await quickPickStub.nextShow();
           quickPickStub.onDidChangeSelection.yield([
