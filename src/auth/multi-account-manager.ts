@@ -63,7 +63,7 @@ export class MultiAccountManager {
   /**
    * Updates or adds a profile based on the current authentication session.
    *
-   * @param session - The authentication session to 
+   * @param session - The authentication session to
    * create/update a profile from.
    * @returns The updated or created profile.
    */

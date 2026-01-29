@@ -7,6 +7,7 @@ PER is a VS Code extension that enables you to work with Notebooks accross vario
 ## Prerequisites
 
 **Required Extensions:**
+
 - [Official Google Colab Extension](https://marketplace.visualstudio.com/items?itemName=google.colab) - Required for authentication
 - [Jupyter Extension](https://marketplace.visualstudio.com/items?itemName=ms-toolsai.jupyter) - Required for notebook support
 
@@ -30,12 +31,12 @@ PER is a VS Code extension that enables you to work with Notebooks accross vario
 
 Activate the command palette with `Ctrl+Shift+P` or `Cmd+Shift+P` on Mac.
 
-| Command                         | Description                                |
-| ------------------------------- | ------------------------------------------ |
-| `PER: Remove Server`            | Select an assigned Colab server to remove  |
-| `PER: Mount Server to Workspace`| Mount a Colab server's filesystem          |
-| `PER: Upload to PER`            | Upload files to a Colab server             |
-| `PER: Sign Out`                 | Sign out of your account                   |
+| Command                          | Description                               |
+| -------------------------------- | ----------------------------------------- |
+| `PER: Remove Server`             | Select an assigned Colab server to remove |
+| `PER: Mount Server to Workspace` | Mount a Colab server's filesystem         |
+| `PER: Upload to PER`             | Upload files to a Colab server            |
+| `PER: Sign Out`                  | Sign out of your account                  |
 
 ## Contributing
 
