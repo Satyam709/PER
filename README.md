@@ -1,54 +1,51 @@
-# Google Colab VS Code Extension
+# PER - Portable Execution Runtime
 
-Colab is a hosted Jupyter Notebook service that requires no setup to use and
-provides free access to computing resources, including GPUs and TPUs. Built atop
-the [Jupyter
-extension](https://marketplace.visualstudio.com/items?itemName=ms-toolsai.jupyter),
-this extension exposes Colab servers directly in VS Code!
+**Run your notebooks anywhere effortlessly**
 
-- 👾 [Bug
-  report](https://github.com/googlecolab/colab-vscode/issues/new?template=bug_report.md)
-- ✨ [Feature
-  request](https://github.com/googlecolab/colab-vscode/issues/new?template=feature_request.md)
-- 💬 [Discussions](https://github.com/googlecolab/colab-vscode/discussions)
+PER is a multi-account VS Code extension that enables you to work with Google Colab servers. Built on top of the [official Google Colab extension](https://marketplace.visualstudio.com/items?itemName=google.colab) and the [Jupyter extension](https://marketplace.visualstudio.com/items?itemName=ms-toolsai.jupyter), PER provides enhanced multi-account management capabilities.
+
+## Prerequisites
+
+**Required Extensions:**
+- [Official Google Colab Extension](https://marketplace.visualstudio.com/items?itemName=google.colab) - Required for authentication
+- [Jupyter Extension](https://marketplace.visualstudio.com/items?itemName=ms-toolsai.jupyter) - Required for notebook support
 
 ## Quick Start
 
-1. Install [VS Code](https://code.visualstudio.com).
-1. Install the Colab extension from either the [Visual Studio
-   Marketplace](https://marketplace.visualstudio.com/items?itemName=google.colab)
-   or [Open VSX](https://open-vsx.org/extension/Google/colab).
-1. Open or create a notebook file.
-1. When prompted, sign in.
-1. Click `Select Kernel` > `Colab` > `New Colab Server`.
-1. 😎 Enjoy!
+1. Install [VS Code](https://code.visualstudio.com)
+2. Install the **Official Google Colab** extension from the marketplace
+3. Install the **PER** extension
+4. Sign in to your Google account through VS Code's account menu
+5. Open or create a notebook file
+6. Click `Select Kernel` > `PER` > `New Colab Server`
+7. 😎 Enjoy!
 
-![Connecting to a new Colab server and executing a code
-cell](./docs/assets/hello-world.gif)
+## Features
+
+- **Multi-Account Support**: Manage multiple Google accounts simultaneously
+- **Portable Execution**: Run your notebooks anywhere with ease
+- **Seamless Integration**: Built on top of official Colab and Jupyter extensions
+- **Enhanced Server Management**: Better control over your Colab servers
 
 ## Commands
 
 Activate the command palette with `Ctrl+Shift+P` or `Cmd+Shift+P` on Mac.
 
-| Command                | Description                                |
-| ---------------------- | ------------------------------------------ |
-| `Colab: Remove Server` | Select an assigned Colab server to remove. |
-| `Colab: Sign Out`      | Sign out of Colab.                         |
+| Command                         | Description                                |
+| ------------------------------- | ------------------------------------------ |
+| `PER: Remove Server`            | Select an assigned Colab server to remove  |
+| `PER: Mount Server to Workspace`| Mount a Colab server's filesystem          |
+| `PER: Upload to PER`            | Upload files to a Colab server             |
+| `PER: Sign Out`                 | Sign out of your account                   |
 
 ## Contributing
 
-Contributions are welcome and appreciated! See the [contributing
-guide](./docs/contributing.md) for more info.
+Contributions are welcome! Please feel free to submit issues and pull requests.
 
-## Data and Telemetry
+## License
 
-The extension does not collect any client-side usage data within VS Code. See
-Colab's [Terms of Service](https://research.google.com/colaboratory/tos_v5.html)
-and the [Google Privacy Policy](https://policies.google.com/privacy), which
-apply to usage of this extension.
+Apache-2.0 License
 
-## Security Disclosures
+## Acknowledgments
 
-Please see our [security disclosure process](./SECURITY.md). All [security
-advisories](https://github.com/googlecolab/colab-vscode/security/advisories) are
-managed on GitHub.
+This extension builds upon the excellent work of the [Google Colab VS Code Extension](https://github.com/googlecolab/colab-vscode).

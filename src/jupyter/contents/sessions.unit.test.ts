@@ -13,7 +13,7 @@ import {
   Disposable,
   WorkspaceConfiguration,
 } from 'vscode';
-import { AuthChangeEvent } from '../../auth/auth-provider';
+import { AuthChangeEvent } from '../../auth/types';
 import { Variant } from '../../colab/api';
 import { COLAB_RUNTIME_PROXY_TOKEN_HEADER } from '../../colab/headers';
 import { Deferred } from '../../test/helpers/async';

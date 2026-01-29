@@ -22,13 +22,13 @@ export interface RegisteredCommand extends Command {
 
 /** Command to open the toolbar command selection. */
 export const COLAB_TOOLBAR: RegisteredCommand = {
-  id: 'colab.toolbarCommand',
-  label: 'Colab',
+  id: 'per.toolbarCommand',
+  label: 'PER',
 };
 
 /** Command to sign out. */
 export const SIGN_OUT: RegisteredCommand = {
-  id: 'colab.signOut',
+  id: 'per.signOut',
   label: 'Sign Out',
 };
 
@@ -62,7 +62,7 @@ export const OPEN_COLAB_WEB: Command = {
 
 /** Command to mount a server's file-system. */
 export const MOUNT_SERVER: RegisteredCommand = {
-  id: 'colab.mountServer',
+  id: 'per.mountServer',
   label: 'Mount Server to Workspace',
   icon: 'remote',
   description: 'Reloads VS Code if a Workspace is not already open.',
@@ -70,14 +70,14 @@ export const MOUNT_SERVER: RegisteredCommand = {
 
 /** Command to remove a server. */
 export const REMOVE_SERVER: RegisteredCommand = {
-  id: 'colab.removeServer',
+  id: 'per.removeServer',
   label: 'Remove Server',
   icon: 'trash',
 };
 
 /** Command to rename a server alias. */
 export const RENAME_SERVER_ALIAS: RegisteredCommand = {
-  id: 'colab.renameServerAlias',
+  id: 'per.renameServerAlias',
   label: 'Rename Server Alias',
 };
 
@@ -90,7 +90,7 @@ export const UPGRADE_TO_PRO: Command = {
 
 /** Command to upload files to a Colab server. */
 export const UPLOAD: RegisteredCommand = {
-  id: 'colab.upload',
-  label: 'Upload to Colab',
+  id: 'per.upload',
+  label: 'Upload to PER',
   icon: 'cloud-upload',
 };

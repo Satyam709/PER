@@ -156,7 +156,7 @@ export async function activate(context: vscode.ExtensionContext) {
   const disposeFs = vscode.workspace.registerFileSystemProvider('colab', fs, {
     isCaseSensitive: true,
   });
-  const disposeTreeView = vscode.window.createTreeView('colab-servers-view', {
+  const disposeTreeView = vscode.window.createTreeView('per-servers-view', {
     treeDataProvider: serverTreeView,
   });
 
@@ -252,31 +252,31 @@ function registerCommands(
       await notebookToolbar(vscode, assignmentManager);
     }),
     vscode.commands.registerCommand(
-      'colab.newFile',
+      'per.newFile',
       (contextItem: ServerItem) => {
         void newFile(vscode, contextItem);
       },
     ),
     vscode.commands.registerCommand(
-      'colab.newFolder',
+      'per.newFolder',
       (contextItem: ServerItem) => {
         void newFolder(vscode, contextItem);
       },
     ),
     vscode.commands.registerCommand(
-      'colab.download',
+      'per.download',
       (contextItem: ServerItem) => {
         void download(vscode, contextItem);
       },
     ),
     vscode.commands.registerCommand(
-      'colab.renameFile',
+      'per.renameFile',
       (contextItem: ServerItem) => {
         void renameFile(vscode, contextItem);
       },
     ),
     vscode.commands.registerCommand(
-      'colab.deleteFile',
+      'per.deleteFile',
       (contextItem: ServerItem) => {
         void deleteFile(vscode, contextItem);
       },

@@ -1,26 +1,27 @@
 {
-  "name": "colab",
-  "publisher": "google",
-  "displayName": "Colab",
-  "description": "Connect notebooks to Colab servers.",
+  "name": "per",
+  "publisher": "beyond",
+  "displayName": "Portable Execution Runtime",
+  "description": "run your notebooks anywhere effortlessly",
   "icon": "icon.png",
   "version": "0.1.7",
   "pricing": "Free",
-  "homepage": "https://github.com/googlecolab/colab-vscode",
+  "homepage": "https://github.com/satyam/per",
   "repository": {
     "type": "git",
-    "url": "https://github.com/googlecolab/colab-vscode"
+    "url": "https://github.com/satyam/per"
   },
   "bugs": {
-    "url": "https://github.com/googlecolab/colab-vscode/issues"
+    "url": "https://github.com/satyam/per/issues"
   },
-  "qna": "https://github.com/googlecolab/colab-vscode/discussions",
+  "qna": "https://github.com/satyam/per/discussions",
   "type": "commonjs",
   "engines": {
     "vscode": "^1.99.3"
   },
   "extensionDependencies": [
-    "ms-toolsai.jupyter"
+    "ms-toolsai.jupyter",
+    "google.colab"
   ],
   "categories": [
     "Data Science",
@@ -28,7 +29,10 @@
     "Notebooks"
   ],
   "keywords": [
+    "per",
     "colab",
+    "portable",
+    "multi-account",
     "google",
     "interactive",
     "julia",
@@ -44,9 +48,9 @@
   ],
   "contributes": {
     "configuration": {
-      "title": "Colab",
+      "title": "PER",
       "properties": {
-        "colab.logging.level": {
+        "per.logging.level": {
           "type": "string",
           "default": "info",
           "enum": [
@@ -65,25 +69,25 @@
             "Debug logs and higher (info, warning and error).",
             "Trace logs and higher (debug, info, warning and error) are logged."
           ],
-          "description": "Controls the verbosity of logs from the Colab extension. These can be found in the 'Colab' output channel."
+          "description": "Controls the verbosity of logs from the PER extension. These can be found in the 'PER' output channel."
         },
-        "colab.uploading": {
+        "per.uploading": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Enables the ability to upload files and folders to Colab servers from the explorer context menu (e.g. right-click a local file > _Upload to Colab_).",
+          "markdownDescription": "Enables the ability to upload files and folders to Colab servers from the explorer context menu (e.g. right-click a local file > _Upload to PER_).",
           "tags": [
             "experimental"
           ]
         },
-        "colab.activityBar": {
+        "per.activityBar": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Enables the Colab activity bar where you can view servers and interact with their `/content` directories.",
+          "markdownDescription": "Enables the PER activity bar where you can view servers and interact with their `/content` directories.",
           "tags": [
             "experimental"
           ]
         },
-        "colab.serverMounting": {
+        "per.serverMounting": {
           "type": "boolean",
           "default": false,
           "description": "Enables the ability to mount Colab server filesystems in your workspace.",
@@ -91,7 +95,7 @@
             "experimental"
           ]
         },
-        "colab.driveMounting": {
+        "per.driveMounting": {
           "type": "boolean",
           "default": false,
           "description": "Enables the ability to mount Google Drive to Colab server filesystems.",
@@ -101,69 +105,63 @@
         }
       }
     },
-    "authentication": [
-      {
-        "label": "Google",
-        "id": "google"
-      }
-    ],
     "commands": [
       {
-        "category": "Colab",
-        "command": "colab.mountServer",
-        "enablement": "colab.hasAssignedServer",
-        "when": "config.colab.serverMounting",
+        "category": "PER",
+        "command": "per.mountServer",
+        "enablement": "per.hasAssignedServer",
+        "when": "config.per.serverMounting",
         "title": "Mount Server to Workspace..."
       },
       {
-        "category": "Colab",
-        "command": "colab.removeServer",
-        "enablement": "colab.hasAssignedServer",
+        "category": "PER",
+        "command": "per.removeServer",
+        "enablement": "per.hasAssignedServer",
         "title": "Remove Server"
       },
       {
-        "category": "Colab",
-        "command": "colab.upload",
-        "enablement": "colab.hasAssignedServer",
-        "when": "config.colab.uploading",
-        "title": "Upload to Colab"
+        "category": "PER",
+        "command": "per.upload",
+        "enablement": "per.hasAssignedServer",
+        "when": "config.per.uploading",
+        "title": "Upload to PER"
       },
       {
-        "category": "Colab",
-        "command": "colab.signOut",
-        "enablement": "colab.isSignedIn",
+        "category": "PER",
+        "command": "per.signOut",
+        "enablement": "per.isSignedIn",
         "title": "Sign Out"
       },
       {
-        "command": "colab.toolbarCommand",
-        "category": "Colab",
-        "title": "Colab",
-        "icon": "$(colab-logo)"
+        "command": "per.toolbarCommand",
+        "category": "PER",
+        "title": "PER",
+        "icon": "$(per-logo)"
       },
       {
-        "command": "colab.newFile",
+        "command": "per.newFile",
         "title": "New File..."
       },
       {
-        "command": "colab.newFolder",
+        "command": "per.newFolder",
         "title": "New Folder..."
       },
       {
-        "command": "colab.download",
+        "command": "per.download",
         "title": "Download..."
       },
       {
-        "command": "colab.renameFile",
+        "command": "per.renameFile",
         "title": "Rename"
       },
       {
-        "command": "colab.deleteFile",
+        "command": "per.deleteFile",
         "title": "Delete"
       }
     ],
     "icons": {
-      "colab-logo": {
-        "description": "Google Colab logo",
+      "per-logo": {
+        "description": "PER logo",
         "default": {
           "fontPath": "./resources/colab-font.woff",
           "fontCharacter": "\\e900"
@@ -173,76 +171,76 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "colab-extension",
-          "title": "Colab",
-          "icon": "$(colab-logo)"
+          "id": "per-extension",
+          "title": "PER",
+          "icon": "$(per-logo)"
         }
       ]
     },
     "views": {
-      "colab-extension": [
+      "per-extension": [
         {
-          "id": "colab-servers-view",
+          "id": "per-servers-view",
           "icon": "$(remote-explorer)",
-          "name": "Colab",
-          "when": "config.colab.activityBar"
+          "name": "PER",
+          "when": "config.per.activityBar"
         }
       ]
     },
     "viewsWelcome": [
       {
-        "view": "colab-servers-view",
-        "contents": "No assigned Colab servers."
+        "view": "per-servers-view",
+        "contents": "No assigned PER servers."
       }
     ],
     "menus": {
       "notebook/toolbar": [
         {
-          "command": "colab.toolbarCommand",
+          "command": "per.toolbarCommand",
           "group": "navigation/control"
         }
       ],
       "commandPalette": [
         {
-          "command": "colab.toolbarCommand",
+          "command": "per.toolbarCommand",
           "when": "false"
         },
         {
-          "command": "colab.upload",
+          "command": "per.upload",
           "when": "false"
         }
       ],
       "explorer/context": [
         {
-          "command": "colab.upload",
+          "command": "per.upload",
           "group": "5b_importexport@30",
-          "when": "resourceScheme == file && config.colab.uploading"
+          "when": "resourceScheme == file && config.per.uploading"
         }
       ],
       "view/item/context": [
         {
-          "command": "colab.newFile",
-          "when": "view == colab-servers-view",
+          "command": "per.newFile",
+          "when": "view == per-servers-view",
           "group": "navigation"
         },
         {
-          "command": "colab.newFolder",
-          "when": "view == colab-servers-view",
+          "command": "per.newFolder",
+          "when": "view == per-servers-view",
           "group": "navigation"
         },
         {
-          "command": "colab.download",
-          "when": "view == colab-servers-view && viewItem == file",
+          "command": "per.download",
+          "when": "view == per-servers-view && viewItem == file",
           "group": "5b_importexport"
         },
         {
-          "command": "colab.renameFile",
-          "when": "view == colab-servers-view && viewItem != server",
+          "command": "per.renameFile",
+          "when": "view == per-servers-view && viewItem != server",
           "group": "7_modification"
         },
         {
-          "command": "colab.deleteFile",
-          "when": "view == colab-servers-view && viewItem != server",
+          "command": "per.deleteFile",
+          "when": "view == per-servers-view && viewItem != server",
           "group": "7_modification"
         }
       ]

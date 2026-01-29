@@ -13,7 +13,7 @@ import vscode, {
   TreeItemCollapsibleState,
   Uri,
 } from 'vscode';
-import { AuthChangeEvent } from '../../auth/auth-provider';
+import { AuthChangeEvent } from '../../auth/types';
 import {
   AssignmentChangeEvent,
   AssignmentManager,

@@ -15,7 +15,7 @@ import { assert, expect } from 'chai';
 import { SinonStubbedInstance } from 'sinon';
 import * as sinon from 'sinon';
 import { CancellationToken, CancellationTokenSource } from 'vscode';
-import { AuthChangeEvent } from '../auth/auth-provider';
+import { AuthChangeEvent } from '../auth/types';
 import { SubscriptionTier, Variant } from '../colab/api';
 import { ColabClient } from '../colab/client';
 import {

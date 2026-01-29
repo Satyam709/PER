@@ -22,7 +22,7 @@ it('buildExtensionUri', () => {
   };
 
   expect(buildExtensionUri(vs.asVsCode(), packageInfo)).to.equal(
-    'vscode-insiders://google.colab',
+    'vscode-insiders://beyond.per',
   );
 });
 
@@ -60,7 +60,7 @@ describe('ExtensionUriHandler', () => {
   it('fires a single URI event', () => {
     const onReceivedUriStub: sinon.SinonStub<[Uri], void> = sinon.stub();
     handler.onReceivedUri(onReceivedUriStub);
-    const testUri = TestUri.parse('vscode://google.colab?foo=bar');
+    const testUri = TestUri.parse('vscode://beyond.per?foo=bar');
 
     handler.handleUri(testUri);
 
@@ -70,8 +70,8 @@ describe('ExtensionUriHandler', () => {
   it('fires multiple URI events', () => {
     const onReceivedUriStub: sinon.SinonStub<[Uri], void> = sinon.stub();
     handler.onReceivedUri(onReceivedUriStub);
-    const testUri1 = TestUri.parse('vscode://google.colab?foo=bar');
-    const testUri2 = TestUri.parse('vscode://google.colab?foo=baz');
+    const testUri1 = TestUri.parse('vscode://beyond.per?foo=bar');
+    const testUri2 = TestUri.parse('vscode://beyond.per?foo=baz');
 
     handler.handleUri(testUri1);
     handler.handleUri(testUri2);
