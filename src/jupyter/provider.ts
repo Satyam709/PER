@@ -14,7 +14,7 @@ import {
 } from '@vscode/jupyter-extension';
 import { CancellationToken, Disposable, Event, ProviderResult } from 'vscode';
 import vscode from 'vscode';
-import { AuthChangeEvent } from '../auth/auth-provider';
+import { AuthChangeEvent } from '../auth/types';
 import { SubscriptionTier } from '../colab/api';
 import { ColabClient } from '../colab/client';
 import {
@@ -72,8 +72,8 @@ export class ColabJupyterServerProvider
       this.handleAssignmentsChange.bind(this),
     );
     this.serverCollection = jupyter.createJupyterServerCollection(
-      'colab',
-      'Colab',
+      'per',
+      'PER',
       this,
     );
     this.serverCollection.commandProvider = this;

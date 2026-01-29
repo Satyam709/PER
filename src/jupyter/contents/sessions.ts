@@ -10,7 +10,7 @@ import vscode, {
   Event,
   EventEmitter,
 } from 'vscode';
-import { AuthChangeEvent } from '../../auth/auth-provider';
+import { AuthChangeEvent } from '../../auth/types';
 import { AssignmentChangeEvent, AssignmentManager } from '../assignments';
 import { ProxiedJupyterClient } from '../client';
 import { ContentsApi } from '../client/generated';

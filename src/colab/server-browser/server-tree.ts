@@ -16,7 +16,7 @@ import {
   Uri,
   workspace,
 } from 'vscode';
-import { AuthChangeEvent } from '../../auth/auth-provider';
+import { AuthChangeEvent } from '../../auth/types';
 import { log } from '../../common/logging';
 import {
   AssignmentChangeEvent,

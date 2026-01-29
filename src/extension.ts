@@ -5,12 +5,10 @@
  */
 
 import { Jupyter } from '@vscode/jupyter-extension';
-import { OAuth2Client } from 'google-auth-library';
 import vscode, { Disposable } from 'vscode';
-import { GoogleAuthProvider } from './auth/auth-provider';
-import { getOAuth2Flows } from './auth/flows/flows';
-import { login } from './auth/login';
-import { AuthStorage } from './auth/storage';
+import { AccountSwitcher } from './auth/account-switcher';
+import { MultiAccountManager } from './auth/multi-account-manager';
+import { TokenBridge } from './auth/token-bridge';
 import { ColabClient } from './colab/client';
 import {
   COLAB_TOOLBAR,
@@ -55,28 +53,42 @@ export async function activate(context: vscode.ExtensionContext) {
   logEnvInfo(jupyter);
   const uriHandler = new ExtensionUriHandler(vscode);
   const uriHandlerRegistration = vscode.window.registerUriHandler(uriHandler);
-  const authClient = new OAuth2Client(
-    CONFIG.ClientId,
-    CONFIG.ClientNotSoSecret,
-  );
-  const authFlows = getOAuth2Flows(
+  // Initialize authentication through the official Google Colab extension
+  const tokenBridge = new TokenBridge(vscode);
+  const accountManager = new MultiAccountManager(context.globalState);
+  accountManager.initialize();
+  const accountSwitcher = new AccountSwitcher(
     vscode,
-    getPackageInfo(context.extension),
-    authClient,
+    accountManager,
+    tokenBridge,
   );
-  const authProvider = new GoogleAuthProvider(
-    vscode,
-    new AuthStorage(context.secrets),
-    authClient,
-    (scopes: string[]) => login(vscode, authFlows, authClient, scopes),
-  );
+
+  // Create an auth event adapter that converts TokenBridge events
+  // to AuthChangeEvent format
+  const createAuthEvent = (
+    event: vscode.EventEmitter<import('./auth/types').AuthChangeEvent>,
+  ) => {
+    return tokenBridge.onDidChangeSessions(() => {
+      void (async () => {
+        const session = await tokenBridge.getSession();
+        event.fire({
+          added: [],
+          removed: [],
+          changed: session ? [session] : [],
+          hasValidSession: !!session,
+        });
+      })();
+    });
+  };
+  const authEventEmitter = new vscode.EventEmitter<
+    import('./auth/types').AuthChangeEvent
+  >();
+  const authEventDisposable = createAuthEvent(authEventEmitter);
+  const authEvent = authEventEmitter.event;
   const colabClient = new ColabClient(
     new URL(CONFIG.ColabApiDomain),
     new URL(CONFIG.ColabGapiDomain),
-    () =>
-      GoogleAuthProvider.getOrCreateSession(vscode).then(
-        (session) => session.accessToken,
-      ),
+    () => tokenBridge.getAccessToken(),
   );
   const serverStorage = new ServerStorage(vscode, context.secrets);
   const assignmentManager = new AssignmentManager(
@@ -86,7 +98,7 @@ export async function activate(context: vscode.ExtensionContext) {
   );
   const serverProvider = new ColabJupyterServerProvider(
     vscode,
-    authProvider.onDidChangeSessions,
+    authEvent,
     assignmentManager,
     colabClient,
     new ServerPicker(vscode, assignmentManager),
@@ -94,13 +106,13 @@ export async function activate(context: vscode.ExtensionContext) {
   );
   const jupyterConnections = new JupyterConnectionManager(
     vscode,
-    authProvider.onDidChangeSessions,
+    authEvent,
     assignmentManager,
   );
   const fs = new ContentsFileSystemProvider(vscode, jupyterConnections);
   const serverTreeView = new ServerTreeProvider(
     assignmentManager,
-    authProvider.onDidChangeSessions,
+    authEvent,
     assignmentManager.onDidAssignmentsChange,
     fs.onDidChangeFile,
   );
@@ -111,16 +123,36 @@ export async function activate(context: vscode.ExtensionContext) {
     assignmentManager,
   );
   const consumptionMonitor = watchConsumption(colabClient);
-  await authProvider.initialize();
-  // Sending server "keep-alive" pings and monitoring consumption requires
-  // issuing authenticated requests to Colab. This can only be done after the
-  // user has signed in. We don't block extension activation on completing the
-  // heavily asynchronous sign-in flow.
-  const whileAuthorizedToggle = authProvider.whileAuthorized(
-    connections,
-    keepServersAlive,
-    consumptionMonitor.toggle,
-  );
+
+  // Create a simple toggle controller for auth-dependent features
+  const whileAuthorizedToggle = authEvent((e) => {
+    // cspell:ignore toggleables
+    const toggleables = [
+      connections,
+      keepServersAlive,
+      consumptionMonitor.toggle,
+    ];
+    if (e.hasValidSession) {
+      toggleables.forEach((t) => {
+        t.on();
+      });
+    } else {
+      toggleables.forEach((t) => {
+        t.off();
+      });
+    }
+  });
+
+  // Initialize auth state
+  void (async () => {
+    const session = await tokenBridge.getSession();
+    authEventEmitter.fire({
+      added: [],
+      removed: [],
+      changed: session ? [session] : [],
+      hasValidSession: !!session,
+    });
+  })();
   const disposeFs = vscode.workspace.registerFileSystemProvider('colab', fs, {
     isCaseSensitive: true,
   });
@@ -132,8 +164,9 @@ export async function activate(context: vscode.ExtensionContext) {
     logging,
     uriHandler,
     uriHandlerRegistration,
-    disposeAll(authFlows),
-    authProvider,
+    authEventEmitter,
+    authEventDisposable,
+    ...accountSwitcher.initialize(),
     assignmentManager,
     serverProvider,
     jupyterConnections,
@@ -143,7 +176,7 @@ export async function activate(context: vscode.ExtensionContext) {
     keepServersAlive,
     ...consumptionMonitor.disposables,
     whileAuthorizedToggle,
-    ...registerCommands(authProvider, assignmentManager, fs),
+    ...registerCommands(tokenBridge, assignmentManager, fs),
   );
 }
 
@@ -179,13 +212,21 @@ function watchConsumption(colab: ColabClient): {
 }
 
 function registerCommands(
-  authProvider: GoogleAuthProvider,
+  _tokenBridge: TokenBridge,
   assignmentManager: AssignmentManager,
   fs: ContentsFileSystemProvider,
 ): Disposable[] {
   return [
     vscode.commands.registerCommand(SIGN_OUT.id, async () => {
-      await authProvider.signOut();
+      // Guide user to sign out through the official extension
+      const signOut = 'Sign Out';
+      const choice = await vscode.window.showInformationMessage(
+        'To sign out, please use the Accounts menu in VS Code to sign out of your Google account.',
+        signOut,
+      );
+      if (choice === signOut) {
+        await vscode.commands.executeCommand('workbench.action.accounts');
+      }
     }),
     // TODO: Register the rename server alias command once rename is reflected
     // in the recent kernels list. See https://github.com/microsoft/vscode-jupyter/issues/17107.
@@ -241,16 +282,4 @@ function registerCommands(
       },
     ),
   ];
-}
-
-/**
- * Returns a Disposable that calls dispose on all items in the array which are
- * disposable.
- */
-function disposeAll(items: { dispose?: () => void }[]): Disposable {
-  return {
-    dispose: () => {
-      items.forEach((item) => item.dispose?.());
-    },
-  };
 }
