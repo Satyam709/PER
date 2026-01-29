@@ -2,7 +2,7 @@
 
 **Run your notebooks anywhere effortlessly**
 
-PER is a multi-account VS Code extension that enables you to work with Google Colab servers. Built on top of the [official Google Colab extension](https://marketplace.visualstudio.com/items?itemName=google.colab) and the [Jupyter extension](https://marketplace.visualstudio.com/items?itemName=ms-toolsai.jupyter), PER provides enhanced multi-account management capabilities.
+PER is a VS Code extension that enables you to work with Notebooks accross various runtimes. Built on top of the [official Google Colab extension](https://marketplace.visualstudio.com/items?itemName=google.colab) and the [Jupyter extension](https://marketplace.visualstudio.com/items?itemName=ms-toolsai.jupyter), PER provides enhanced multi-account management capabilities.
 
 ## Prerequisites
 
@@ -22,7 +22,6 @@ PER is a multi-account VS Code extension that enables you to work with Google Co
 
 ## Features
 
-- **Multi-Account Support**: Manage multiple Google accounts simultaneously
 - **Portable Execution**: Run your notebooks anywhere with ease
 - **Seamless Integration**: Built on top of official Colab and Jupyter extensions
 - **Enhanced Server Management**: Better control over your Colab servers
