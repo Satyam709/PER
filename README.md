@@ -2,7 +2,7 @@
 
 **Run your notebooks anywhere effortlessly**
 
-PER is a VS Code extension that enables you to work with Notebooks accross various runtimes. Built on top of the [official Google Colab extension](https://marketplace.visualstudio.com/items?itemName=google.colab) and the [Jupyter extension](https://marketplace.visualstudio.com/items?itemName=ms-toolsai.jupyter), PER provides enhanced multi-account management capabilities.
+PER is a VS Code extension that enables you to work with Notebooks across various runtimes. Built on top of the [official Google Colab extension](https://marketplace.visualstudio.com/items?itemName=google.colab) and the [Jupyter extension](https://marketplace.visualstudio.com/items?itemName=ms-toolsai.jupyter), PER provides enhanced multi-account management capabilities.
 
 ## Prerequisites
 
