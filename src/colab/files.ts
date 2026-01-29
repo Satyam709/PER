@@ -8,7 +8,7 @@ import vscode, { Uri } from 'vscode';
 import { ColabAssignedServer } from '../jupyter/servers';
 
 /**
- * Creates a URI for a file on a Colab server using the 'colab' scheme.
+ * Creates a URI for a file on a Colab server using the 'per' scheme.
  *
  * @param vs - The VS Code module.
  * @param server - The assigned Colab server whose endpoint is used as the URI
@@ -23,7 +23,7 @@ export function buildColabFileUri(
 ): Uri {
   return vs.Uri.joinPath(
     vs.Uri.from({
-      scheme: 'colab',
+      scheme: 'per',
       authority: server.endpoint,
       path: '/',
     }),

@@ -122,6 +122,7 @@ export class AccountSwitcher {
    * Prompts user to add a new account.
    */
   private async addAccount(): Promise<void> {
+    log.info('User initiated add account flow');
     const proceed = await this.vs.window.showInformationMessage(
       'To add a new account, you need to sign in via the official Google Colab extension. Continue?',
       'Continue',
@@ -129,20 +130,24 @@ export class AccountSwitcher {
     );
 
     if (proceed !== 'Continue') {
+      log.debug('User cancelled add account flow');
       return;
     }
 
     try {
+      log.debug('Requesting new authentication session...');
       // Force new session to ensure user can pick a different account
       const session = await this.tokenBridge.ensureSession(true);
       const profile = await this.accountManager.updateFromSession(session);
       this.updateStatusBar();
       this.vs.window.showInformationMessage(`Added account: ${profile.email}`);
-      log.info(`Added new account: ${profile.email}`);
+      log.info(`Successfully added new account: ${profile.email}`);
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
-      this.vs.window.showErrorMessage(`Failed to add account: ${msg}`);
       log.error('Failed to add account:', error);
+      this.vs.window.showErrorMessage(
+        `Failed to add account: ${msg}. Make sure the official Google Colab extension is installed and active.`,
+      );
     }
   }
 
@@ -229,7 +234,7 @@ export class AccountSwitcher {
   }
 
   /**
-   * Syncs the account manager state with the current session 
+   * Syncs the account manager state with the current session
    * from official extension.
    */
   private async syncWithOfficialExtension(): Promise<void> {

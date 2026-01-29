@@ -459,7 +459,7 @@ export class ContentsFileSystemProvider
 
   private dropMatchingConnection(e: WorkspaceFoldersChangeEvent) {
     for (const s of e.removed) {
-      if (s.uri.scheme !== 'colab') {
+      if (s.uri.scheme !== 'per') {
         continue;
       }
       this.jupyterConnections.drop(s.uri.authority, true);
@@ -473,8 +473,7 @@ export class ContentsFileSystemProvider
     }
     const foldersToKeep = currentFolders
       .filter(
-        (f) =>
-          !(f.uri.scheme === 'colab' && endpoints.includes(f.uri.authority)),
+        (f) => !(f.uri.scheme === 'per' && endpoints.includes(f.uri.authority)),
       )
       .map((f) => ({
         uri: f.uri,

@@ -29,6 +29,7 @@ import { openColabSignup, openColabWeb } from '../colab/commands/external';
 import { buildIconLabel, stripIconLabel } from '../colab/commands/utils';
 import { ServerPicker } from '../colab/server-picker';
 import { LatestCancelable } from '../common/async';
+import { log } from '../common/logging';
 import { traceMethod } from '../common/logging/decorators';
 import { InputFlowAction } from '../common/multi-step-quickpick';
 import { isUUID } from '../utils/uuid';
@@ -209,13 +210,17 @@ export class ColabJupyterServerProvider
   }
 
   private async assignServer(): Promise<JupyterServer> {
+    log.info('User initiated server assignment');
     const tier = await this.client.getSubscriptionTier();
+    log.debug(`User subscription tier: ${String(tier)}`);
     const serverType = await this.serverPicker.prompt(
       await this.assignmentManager.getAvailableServerDescriptors(tier),
     );
     if (!serverType) {
+      log.debug('User cancelled server selection');
       throw new this.vs.CancellationError();
     }
+    log.info(`User selected server type: ${serverType.label}`);
     return this.assignmentManager.assignServer(serverType);
   }
 

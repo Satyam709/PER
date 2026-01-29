@@ -49,12 +49,23 @@ import { ExtensionUriHandler } from './system/uri';
 // Called when the extension is activated.
 export async function activate(context: vscode.ExtensionContext) {
   const logging = initializeLogger(vscode, context.extensionMode);
+  log.info('PER extension activation started');
+
   const jupyter = await getJupyterApi(vscode);
   logEnvInfo(jupyter);
+
   const uriHandler = new ExtensionUriHandler(vscode);
   const uriHandlerRegistration = vscode.window.registerUriHandler(uriHandler);
+  log.debug('URI handler registered');
+
   // Initialize authentication through the official Google Colab extension
+  log.info('Initializing TokenBridge for authentication');
   const tokenBridge = new TokenBridge(vscode);
+  const isExtInstalled = tokenBridge.isOfficialExtensionInstalled();
+  log.info(
+    `Official Google Colab extension installed: ${String(isExtInstalled)}`,
+  );
+
   const accountManager = new MultiAccountManager(context.globalState);
   accountManager.initialize();
   const accountSwitcher = new AccountSwitcher(
@@ -153,9 +164,11 @@ export async function activate(context: vscode.ExtensionContext) {
       hasValidSession: !!session,
     });
   })();
-  const disposeFs = vscode.workspace.registerFileSystemProvider('colab', fs, {
+  log.info('Registering filesystem provider with scheme: per');
+  const disposeFs = vscode.workspace.registerFileSystemProvider('per', fs, {
     isCaseSensitive: true,
   });
+  log.info('Filesystem provider registered successfully');
   const disposeTreeView = vscode.window.createTreeView('per-servers-view', {
     treeDataProvider: serverTreeView,
   });
@@ -178,6 +191,8 @@ export async function activate(context: vscode.ExtensionContext) {
     whileAuthorizedToggle,
     ...registerCommands(tokenBridge, assignmentManager, fs),
   );
+
+  log.info('PER extension activated successfully');
 }
 
 function logEnvInfo(jupyter: vscode.Extension<Jupyter>) {

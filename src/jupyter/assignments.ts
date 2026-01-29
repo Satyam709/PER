@@ -295,6 +295,8 @@ export class AssignmentManager implements vscode.Disposable {
     signal?: AbortSignal,
   ): Promise<ColabAssignedServer> {
     const id = randomUUID();
+    log.info(`Assigning server: ${descriptor.label} (${descriptor.variant})`);
+    log.debug(`Server ID: ${id}`);
     let assignment: Assignment;
     try {
       ({ assignment } = await this.client.assign(
@@ -304,8 +306,9 @@ export class AssignmentManager implements vscode.Disposable {
         descriptor.shape,
         signal,
       ));
+      log.info(`Successfully assigned server: ${descriptor.label}`);
     } catch (error) {
-      log.trace(`Failed assigning server ${id}`, error);
+      log.error(`Failed assigning server ${id}:`, error);
       // TODO: Consider listing assignments to check if there are too many
       // before the user goes through the assignment flow. This handling logic
       // would still be needed for the rare race condition where an assignment

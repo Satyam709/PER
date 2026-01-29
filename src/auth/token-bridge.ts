@@ -67,6 +67,7 @@ export class TokenBridge {
    * @returns The authentication session if one exists, null otherwise.
    */
   async getSession(): Promise<AuthenticationSession | null> {
+    log.debug('Attempting to get existing authentication session (silent)');
     try {
       // Silent mode: won't prompt user if no session exists
       const session = await this.vs.authentication.getSession(
@@ -74,6 +75,13 @@ export class TokenBridge {
         REQUIRED_SCOPES,
         { silent: true },
       );
+      if (session) {
+        log.info(
+          `Authentication session retrieved for account: ${session.account.label}`,
+        );
+      } else {
+        log.debug('No existing authentication session found');
+      }
       return session ?? null;
     } catch (error) {
       log.warn('Failed to get session from official extension:', error);
@@ -93,14 +101,22 @@ export class TokenBridge {
    * @throws Error if user cancels the sign-in flow or if not installed.
    */
   async ensureSession(forceNewSession = false): Promise<AuthenticationSession> {
+    log.info(
+      `Attempting to ensure authentication session (forceNew: ${String(forceNewSession)})`,
+    );
+
     if (!this.isOfficialExtensionInstalled()) {
-      await this.promptInstallOfficialExtension();
-      throw new Error(
-        'Official Google Colab extension is required but not installed.',
-      );
+      log.error('Official Google Colab extension is not installed');
+      const installed = await this.promptInstallOfficialExtension();
+      if (!installed) {
+        throw new Error(
+          'Official Google Colab extension is required but not installed.',
+        );
+      }
     }
 
     try {
+      log.debug('Requesting authentication session from VS Code...');
       // Note: Cannot use both createIfNone and forceNewSession together
       const session = await this.vs.authentication.getSession(
         'google',
@@ -108,14 +124,17 @@ export class TokenBridge {
         forceNewSession ? { forceNewSession: true } : { createIfNone: true },
       );
       if (!session) {
+        log.error('Authentication session returned undefined');
         throw new Error('session undefined');
       }
+      log.info(
+        `Authentication successful for account: ${session.account.label}`,
+      );
       return session;
     } catch (error) {
       log.error('Failed to get or create session:', error);
-      throw new Error(
-        `Failed to authenticate with Google: ${error instanceof Error ? error.message : 'unknown error'}`,
-      );
+      const errorMsg = error instanceof Error ? error.message : 'unknown error';
+      throw new Error(`Failed to authenticate with Google: ${errorMsg}`);
     }
   }
 
@@ -128,10 +147,13 @@ export class TokenBridge {
    * @throws Error if no session exists or refresh fails.
    */
   async getAccessToken(): Promise<string> {
+    log.debug('Requesting access token');
     const session = await this.getSession();
     if (!session) {
+      log.error('Cannot get access token: No active authentication session');
       throw new Error('No active authentication session.');
     }
+    log.debug('Access token retrieved successfully');
     return session.accessToken;
   }
 

@@ -52,7 +52,7 @@ export class ServerTreeProvider
     authChange: Event<AuthChangeEvent>,
     assignmentChange: Event<AssignmentChangeEvent>,
     fileChange: Event<FileChangeEvent[]>,
-    private readonly scheme = 'colab',
+    private readonly scheme = 'per',
   ) {
     this.authListener = authChange(this.handleAuthChange.bind(this));
     this.assignmentListener = assignmentChange(this.refresh.bind(this));
