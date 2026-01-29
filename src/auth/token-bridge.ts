@@ -62,8 +62,6 @@ export class TokenBridge {
    * Attempts to get an existing
    * authentication session from the official extension.
    *
-   * This method will not prompt the user to sign in if no session exists.
-   *
    * @returns The authentication session if one exists, null otherwise.
    */
   async getSession(): Promise<AuthenticationSession | null> {
@@ -142,17 +140,21 @@ export class TokenBridge {
    * Gets a fresh access token for the current session.
    *
    * This will automatically refresh the token if needed.
+   * If no session exists, prompts the user to sign in.
    *
    * @returns The access token.
-   * @throws Error if no session exists or refresh fails.
+   * @throws Error if user cancels sign-in or authentication fails.
    */
   async getAccessToken(): Promise<string> {
     log.debug('Requesting access token');
-    const session = await this.getSession();
+    let session = await this.getSession();
+
+    // If no session exists, prompt user to sign in
     if (!session) {
-      log.error('Cannot get access token: No active authentication session');
-      throw new Error('No active authentication session.');
+      log.info('No active session found, prompting user to sign in');
+      session = await this.ensureSession();
     }
+
     log.debug('Access token retrieved successfully');
     return session.accessToken;
   }
