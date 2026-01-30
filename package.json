@@ -133,6 +133,11 @@
         "title": "Sign Out"
       },
       {
+        "category": "PER",
+        "command": "per.switchAccount",
+        "title": "Switch Account"
+      },
+      {
         "command": "per.toolbarCommand",
         "category": "PER",
         "title": "PER",
