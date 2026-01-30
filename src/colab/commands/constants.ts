@@ -94,3 +94,19 @@ export const UPLOAD: RegisteredCommand = {
   label: 'Upload to PER',
   icon: 'cloud-upload',
 };
+
+/** Command to configure cloud storage. */
+export const CONFIGURE_STORAGE: RegisteredCommand = {
+  id: 'per.configureStorage',
+  label: 'Configure Storage',
+  icon: 'settings-gear',
+  description: 'Set up cloud storage synchronization with rclone',
+};
+
+/** Command to manually sync storage. */
+export const SYNC_STORAGE: RegisteredCommand = {
+  id: 'per.syncStorage',
+  label: 'Sync Storage',
+  icon: 'sync',
+  description: 'Manually sync workspace with cloud storage',
+};

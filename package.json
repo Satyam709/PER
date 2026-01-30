@@ -102,6 +102,30 @@
           "tags": [
             "experimental"
           ]
+        },
+        "per.storage.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Enables cloud storage synchronization using rclone. Allows syncing project files between local workspace and Jupyter servers.",
+          "tags": [
+            "experimental"
+          ]
+        },
+        "per.storage.autoSync": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically sync storage when connecting to a Jupyter server.",
+          "tags": [
+            "experimental"
+          ]
+        },
+        "per.storage.syncOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically sync storage when saving files (requires storage to be enabled).",
+          "tags": [
+            "experimental"
+          ]
         }
       }
     },
@@ -162,6 +186,19 @@
       {
         "command": "per.deleteFile",
         "title": "Delete"
+      },
+      {
+        "category": "PER",
+        "command": "per.configureStorage",
+        "title": "Configure Storage",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "category": "PER",
+        "command": "per.syncStorage",
+        "enablement": "per.hasStorageConfigured",
+        "title": "Sync Storage",
+        "icon": "$(sync)"
       }
     ],
     "icons": {
@@ -203,6 +240,11 @@
         {
           "command": "per.toolbarCommand",
           "group": "navigation/control"
+        },
+        {
+          "command": "per.syncStorage",
+          "group": "navigation/control",
+          "when": "per.hasStorageConfigured && notebookType == 'jupyter-notebook'"
         }
       ],
       "commandPalette": [

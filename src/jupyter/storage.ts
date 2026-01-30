@@ -32,6 +32,15 @@ const AssignedServers = z.array(
         .optional(),
     }),
     dateAssigned: z.coerce.date(),
+    // Storage configuration (optional)
+    storageConfig: z
+      .object({
+        enabled: z.boolean().default(false),
+        rcloneConfigPath: z.string().optional(),
+        remoteRootPath: z.string().optional(),
+        lastSync: z.coerce.date().optional(),
+      })
+      .optional(),
   }),
 );
 

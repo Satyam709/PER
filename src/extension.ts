@@ -15,10 +15,13 @@ import {
   MOUNT_SERVER,
   REMOVE_SERVER,
   SIGN_OUT,
+  CONFIGURE_STORAGE,
+  SYNC_STORAGE,
 } from './colab/commands/constants';
 import { upload } from './colab/commands/files';
 import { notebookToolbar } from './colab/commands/notebook';
 import { mountServer, removeServer } from './colab/commands/server';
+import { configureStorage, syncStorage } from './colab/commands/storage';
 import { ConnectionRefreshController } from './colab/connection-refresher';
 import { ConsumptionNotifier } from './colab/consumption/notifier';
 import { ConsumptionPoller } from './colab/consumption/poller';
@@ -43,6 +46,7 @@ import { JupyterConnectionManager } from './jupyter/contents/sessions';
 import { getJupyterApi } from './jupyter/jupyter-extension';
 import { ColabJupyterServerProvider } from './jupyter/provider';
 import { ServerStorage } from './jupyter/storage';
+import { StorageConfigManager } from './cloudstorage/config';
 import { ExtensionUriHandler } from './system/uri';
 
 // Called when the extension is activated.
@@ -95,6 +99,11 @@ export async function activate(context: vscode.ExtensionContext) {
     () => tokenBridge.getAccessToken(),
   );
   const serverStorage = new ServerStorage(vscode, context.secrets);
+  const storageConfigManager = new StorageConfigManager(
+    vscode,
+    context.secrets,
+    context.workspaceState,
+  );
   const assignmentManager = new AssignmentManager(
     vscode,
     colabClient,
@@ -182,7 +191,12 @@ export async function activate(context: vscode.ExtensionContext) {
     keepServersAlive,
     ...consumptionMonitor.disposables,
     whileAuthorizedToggle,
-    ...registerCommands(tokenBridge, assignmentManager, fs),
+    ...registerCommands(
+      tokenBridge,
+      assignmentManager,
+      fs,
+      storageConfigManager,
+    ),
   );
 
   log.info('PER extension activated successfully');
@@ -223,6 +237,7 @@ function registerCommands(
   _tokenBridge: TokenBridge,
   assignmentManager: AssignmentManager,
   fs: ContentsFileSystemProvider,
+  storageConfigManager: StorageConfigManager,
 ): Disposable[] {
   return [
     vscode.commands.registerCommand(SIGN_OUT.id, async () => {
@@ -256,6 +271,12 @@ function registerCommands(
         await upload(vscode, assignmentManager, uri, uris);
       },
     ),
+    vscode.commands.registerCommand(CONFIGURE_STORAGE.id, async () => {
+      await configureStorage(vscode, storageConfigManager);
+    }),
+    vscode.commands.registerCommand(SYNC_STORAGE.id, async () => {
+      await syncStorage(vscode, assignmentManager, storageConfigManager);
+    }),
     vscode.commands.registerCommand(COLAB_TOOLBAR.id, async () => {
       await notebookToolbar(vscode, assignmentManager);
     }),

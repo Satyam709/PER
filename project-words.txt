@@ -23,6 +23,7 @@ openapitools
 pkce
 Pyright
 quickpick
+rclone
 refreshable
 toggleable
 tombstoned
