@@ -7,7 +7,6 @@
 import { Jupyter } from '@vscode/jupyter-extension';
 import vscode, { Disposable } from 'vscode';
 import { AccountSwitcher } from './auth/account-switcher';
-import { MultiAccountManager } from './auth/multi-account-manager';
 import { TokenBridge } from './auth/token-bridge';
 import { ColabClient } from './colab/client';
 import {
@@ -66,13 +65,7 @@ export async function activate(context: vscode.ExtensionContext) {
     `Official Google Colab extension installed: ${String(isExtInstalled)}`,
   );
 
-  const accountManager = new MultiAccountManager(context.globalState);
-  accountManager.initialize();
-  const accountSwitcher = new AccountSwitcher(
-    vscode,
-    accountManager,
-    tokenBridge,
-  );
+  const accountSwitcher = new AccountSwitcher(vscode, tokenBridge);
 
   // Create an auth event adapter that converts TokenBridge events
   // to AuthChangeEvent format

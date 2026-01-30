@@ -160,6 +160,37 @@ export class TokenBridge {
   }
 
   /**
+   * Signs out the current user by removing the authentication session.
+   *
+   * @returns True if sign-out was successful, false if no session to sign out.
+   */
+  async signOut(): Promise<boolean> {
+    log.info('Attempting to sign out current session');
+    const session = await this.getSession();
+
+    if (!session) {
+      log.debug('No active session to sign out from');
+      return false;
+    }
+
+    try {
+      log.debug(`Signing out account: ${session.account.label}`);
+      // Clear the session preference to trigger sign-out
+      // Don't use forceNewSession as that would prompt for login immediately
+      await this.vs.authentication.getSession('google', REQUIRED_SCOPES, {
+        clearSessionPreference: true,
+        silent: true,
+      });
+      log.info('Successfully signed out');
+      return true;
+    } catch (error) {
+      // User may have cancelled, which is fine
+      log.debug('Sign out cancelled or failed:', error);
+      return false;
+    }
+  }
+
+  /**
    * Listens for authentication session changes from the official extension.
    *
    * @param listener - Callback to invoke when sessions change.
