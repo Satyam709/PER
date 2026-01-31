@@ -104,28 +104,6 @@ export default tseslint.config(
       },
     },
   },
-  {
-    files: ['**/*.{ts,js,mocharc.js,mjs,mts}'],
-    rules: {
-      'headers/header-format': [
-        'error',
-        {
-          source: 'string',
-          content: [
-            '@license',
-            'Copyright (year) Google LLC',
-            'SPDX-License-Identifier: Apache-2.0',
-          ].join('\n'),
-          patterns: {
-            year: {
-              pattern: '202[5-6]',
-              defaultValue: '2026',
-            },
-          },
-        },
-      ],
-    },
-  },
   // Intentionally last to override any conflicting rules.
   eslintConfigPrettier,
 );
