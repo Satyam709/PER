@@ -35,6 +35,7 @@ import {
   COLAB_CLIENT_AGENT_HEADER,
   COLAB_RUNTIME_PROXY_TOKEN_HEADER,
 } from '../colab/headers';
+import { TerminalExecutor } from '../colab/terminal-executor';
 import { log } from '../common/logging';
 import { ProxiedJupyterClient } from './client';
 import { colabProxyWebSocket } from './colab-proxy-web-socket';
@@ -551,13 +552,17 @@ export class AssignmentManager implements vscode.Disposable {
       },
       dateAssigned,
     };
-    return {
+    const result = {
       ...colabServer,
       connectionInformation: {
         ...colabServer.connectionInformation,
         WebSocket: colabProxyWebSocket(this.vs, this.client, colabServer),
       },
     };
+    log.info('server assigned ', result);
+    log.info('trying to connect terminal ');
+    new TerminalExecutor(result);
+    return result;
   }
 
   private async notifyMaxAssignmentsExceeded() {

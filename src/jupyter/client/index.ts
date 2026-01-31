@@ -4,13 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { JupyterServerConnectionInformation } from '@vscode/jupyter-extension';
 import { Uri, Event, Disposable } from 'vscode';
 import {
   COLAB_CLIENT_AGENT_HEADER,
   COLAB_RUNTIME_PROXY_TOKEN_HEADER,
 } from '../../colab/headers';
+import { Logger, logWithComponent } from '../../common/logging';
 import { AssignmentChangeEvent } from '../assignments';
 import { ColabAssignedServer } from '../servers';
+
 import {
   Configuration,
   ConfigApi,
@@ -136,6 +139,21 @@ export class ProxiedJupyterClient implements JupyterClient {
   ): JupyterClient & Disposable {
     return new RefreshingClient(server, changes);
   }
+
+  /**
+   * Initializes a {@link ProxiedJupyterClient} with static connection
+   * information.
+   *
+   * @param connectionInfo - The connection information to use.
+   * @returns a {@link ProxiedJupyterClient}.
+   */
+  static withConnectionInformation(
+    connectionInfo: JupyterServerConnectionInformation,
+  ): JupyterClient {
+    return new ProxiedJupyterClient(connectionInfo.baseUrl, () =>
+      Promise.resolve(connectionInfo.token ?? ''),
+    );
+  }
 }
 
 class RefreshingClient extends ProxiedJupyterClient implements Disposable {
@@ -179,5 +197,70 @@ class AddProxyToken implements Middleware {
     h.set(COLAB_RUNTIME_PROXY_TOKEN_HEADER.key, t);
     context.init.headers = h;
     return context;
+  }
+}
+
+export class GeneralJupyterClient implements JupyterClient {
+  private configApi: ConfigApi | undefined;
+  private contentsApi: ContentsApi | undefined;
+  private identityApi: IdentityApi | undefined;
+  private kernelsApi: KernelsApi | undefined;
+  private kernelspecsApi: KernelspecsApi | undefined;
+  private sessionsApi: SessionsApi | undefined;
+  private statusApi: StatusApi | undefined;
+  private terminalsApi: TerminalsApi | undefined;
+  private clientConfig: Configuration;
+  private logger: Logger;
+
+  protected constructor(connectionInfo: JupyterServerConnectionInformation) {
+    this.logger = logWithComponent('GeneralJupyterClient');
+
+    if (!connectionInfo.fetch) {
+      throw new Error('failed to create rest client: fetch impl not found!');
+    }
+    this.clientConfig = new Configuration({
+      basePath: connectionInfo.baseUrl.toString(),
+      fetchApi: connectionInfo.fetch,
+    });
+
+    this.logger.debug('gen config : ', this.clientConfig);
+  }
+
+  static withConnectionInfo(
+    connectionInfo: JupyterServerConnectionInformation,
+  ) {
+    return new GeneralJupyterClient(connectionInfo);
+  }
+
+  get config() {
+    return (this.configApi ??= new ConfigApi(this.clientConfig));
+  }
+
+  get contents() {
+    return (this.contentsApi ??= new ContentsApi(this.clientConfig));
+  }
+
+  get identity() {
+    return (this.identityApi ??= new IdentityApi(this.clientConfig));
+  }
+
+  get kernels() {
+    return (this.kernelsApi ??= new KernelsApi(this.clientConfig));
+  }
+
+  get kernelspecs() {
+    return (this.kernelspecsApi ??= new KernelspecsApi(this.clientConfig));
+  }
+
+  get sessions() {
+    return (this.sessionsApi ??= new SessionsApi(this.clientConfig));
+  }
+
+  get status() {
+    return (this.statusApi ??= new StatusApi(this.clientConfig));
+  }
+
+  get terminals() {
+    return (this.terminalsApi ??= new TerminalsApi(this.clientConfig));
   }
 }

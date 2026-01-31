@@ -44,7 +44,7 @@ export enum LogLevel {
 export type ActionableLogLevel = Exclude<LogLevel, LogLevel.Off>;
 
 /** The configured log level. */
-let level: LogLevel = LogLevel.Info;
+let level: LogLevel = LogLevel.Debug;
 
 const loggers: Logger[] = [];
 
@@ -109,6 +109,33 @@ export const log: Logger = {
   trace: (msg: string, ...args: unknown[]) => {
     doLog(LogLevel.Trace, 'trace', msg, ...args);
   },
+};
+
+/**
+ * The global logger instance.
+ * @param component-
+ * uses this component field in all subsequent logs
+ *
+ * Can be used directly after calling `initializeLogger()`.
+ */
+export const logWithComponent = (component: string): Logger => {
+  return {
+    error: (msg: string, ...args: unknown[]) => {
+      doLog(LogLevel.Error, 'error', msg, 'component', component, ...args);
+    },
+    warn: (msg: string, ...args: unknown[]) => {
+      doLog(LogLevel.Warning, 'warn', msg, 'component', component, ...args);
+    },
+    info: (msg: string, ...args: unknown[]) => {
+      doLog(LogLevel.Info, 'info', msg, 'component', component, ...args);
+    },
+    debug: (msg: string, ...args: unknown[]) => {
+      doLog(LogLevel.Debug, 'debug', msg, 'component', component, ...args);
+    },
+    trace: (msg: string, ...args: unknown[]) => {
+      doLog(LogLevel.Trace, 'trace', msg, 'component', component, ...args);
+    },
+  };
 };
 
 function doLog(

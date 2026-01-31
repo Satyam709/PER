@@ -8,6 +8,7 @@ import { Jupyter } from '@vscode/jupyter-extension';
 import vscode, { Disposable } from 'vscode';
 import { AccountSwitcher } from './auth/account-switcher';
 import { TokenBridge } from './auth/token-bridge';
+import { StorageConfigManager } from './cloudstorage/config';
 import { ColabClient } from './colab/client';
 import {
   COLAB_TOOLBAR,
@@ -46,7 +47,6 @@ import { JupyterConnectionManager } from './jupyter/contents/sessions';
 import { getJupyterApi } from './jupyter/jupyter-extension';
 import { ColabJupyterServerProvider } from './jupyter/provider';
 import { ServerStorage } from './jupyter/storage';
-import { StorageConfigManager } from './cloudstorage/config';
 import { ExtensionUriHandler } from './system/uri';
 
 // Called when the extension is activated.

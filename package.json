@@ -199,6 +199,25 @@
         "enablement": "per.hasStorageConfigured",
         "title": "Sync Storage",
         "icon": "$(sync)"
+      },
+      {
+        "category": "PER",
+        "command": "per.storage.setupServer",
+        "enablement": "per.hasAssignedServer && per.hasStorageConfigured",
+        "title": "Setup Storage on Server"
+      },
+      {
+        "category": "PER",
+        "command": "per.storage.syncNow",
+        "enablement": "per.hasAssignedServer && per.hasStorageConfigured",
+        "title": "Sync Storage Now",
+        "icon": "$(sync)"
+      },
+      {
+        "category": "PER",
+        "command": "per.storage.validateSetup",
+        "enablement": "per.hasAssignedServer && per.hasStorageConfigured",
+        "title": "Validate Storage Setup"
       }
     ],
     "icons": {

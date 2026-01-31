@@ -2,16 +2,16 @@
 
 ## Core Flow:
 
-1. EntryPoint: By pressing on the `Select Kernel` option 
+1. EntryPoint: By pressing on the `Select Kernel` option
 
 ![Screenshot_20260126_112439.png](attachment:2321fd21-5013-4fa6-80b1-bb633d174de4:Screenshot_20260126_112439.png)
 
 - will modify this menu to replace the colab with PER.
 
 1. Upon clicking the per option we give a similar menu to above with following options:
-    - Colab ⇒ like the one existed at previous level
-    - Custom Instance
-    - Storage Provider ⇒all config and setup for the storage service linking
+   - Colab ⇒ like the one existed at previous level
+   - Custom Instance
+   - Storage Provider ⇒all config and setup for the storage service linking
 
 ## Sub Flows:
 
@@ -26,9 +26,7 @@ Very similar to what colab extension currently provides just minor addons as:
 ![Screenshot_20260126_112501.png](attachment:34e74d2a-3531-4e97-9413-bcafffdf26fd:Screenshot_20260126_112501.png)
 
 - next we setup everything on server side plus your storage(if configured for proj) and boom!
-    
-    you feel as if running normally.
-    
+  you feel as if running normally.
 
 ### 2. Custom Instance:
 
@@ -48,10 +46,8 @@ Menu Options:
 
 - Give the `rclone` config path or file with the available cloud storage auth tokens.
 - next menu : The root folder to use at cloud storage, say `drive:/projects/proj1`
-    - This the exact folder we will keep in sync to the jupyter servers host project data folder.
-    
-    > Note: will  have to provide some kinda security mechanism to avoid wrong dir selection like this root proj  to avoid unintensional change and polluting of the cloud folder. To fix this we can persist this info at the local workspace than propagate this one whenever we switch the kernel.
-    > 
+  - This the exact folder we will keep in sync to the jupyter servers host project data folder.
+    > Note: will have to provide some kinda security mechanism to avoid wrong dir selection like this root proj to avoid unintensional change and polluting of the cloud folder. To fix this we can persist this info at the local workspace than propagate this one whenever we switch the kernel.
 
 ## Some custom options:
 
@@ -62,4 +58,3 @@ Upon connecting the kernel we will give a external options at top of notebook to
 ### I think this is enough for v1.
 
 > This is my understanding and visualization about the project. Feel free to suggest some changes to the usage flow.
->
