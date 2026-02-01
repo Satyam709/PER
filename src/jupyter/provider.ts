@@ -266,6 +266,7 @@ export class ColabJupyterServerProvider
     await this.vs.commands.executeCommand(
       'setContext',
       'colab.hasAssignedServer',
+      
       value,
     );
   }

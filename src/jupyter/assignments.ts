@@ -13,6 +13,7 @@ import fetch, {
   Response,
 } from 'node-fetch';
 import vscode from 'vscode';
+import { log } from '../common/logging';
 import {
   Assignment,
   ListedAssignment,
@@ -30,13 +31,12 @@ import {
   NotFoundError,
   TooManyAssignmentsError,
 } from '../server/colab/client';
-import { REMOVE_SERVER } from '../server/commands/constants';
+import { ExecutorManager } from '../server/colab/executor-manager';
 import {
   COLAB_CLIENT_AGENT_HEADER,
   COLAB_RUNTIME_PROXY_TOKEN_HEADER,
 } from '../server/colab/headers';
-import { TerminalExecutor } from '../server/colab/terminal-executor';
-import { log } from '../common/logging';
+import { REMOVE_SERVER } from '../server/commands/constants';
 import { ProxiedJupyterClient } from './client';
 import { colabProxyWebSocket } from './colab-proxy-web-socket';
 import {
@@ -82,17 +82,35 @@ export class AssignmentManager implements vscode.Disposable {
 
   private readonly assignmentChange: vscode.EventEmitter<AssignmentChangeEvent>;
   private readonly disposables: vscode.Disposable[] = [];
+  private readonly executorManager: ExecutorManager;
 
   constructor(
     private readonly vs: typeof vscode,
     private readonly client: ColabClient,
     private readonly storage: ServerStorage,
   ) {
+    this.executorManager = new ExecutorManager();
+    this.disposables.push(this.executorManager);
     this.assignmentChange = new vs.EventEmitter<AssignmentChangeEvent>();
     this.disposables.push(this.assignmentChange);
     this.onDidAssignmentsChange = this.assignmentChange.event;
-    // TODO: Remove once https://github.com/microsoft/vscode-jupyter/issues/17094 is fixed.
+    
+    // Handle executor lifecycle based on server assignments
     this.onDidAssignmentsChange((e) => {
+      // Remove executors for removed servers
+      for (const { server } of e.removed) {
+        this.executorManager.removeExecutor(server.id);
+      }
+      
+      // Create executors for newly added servers
+      for (const server of e.added) {
+        try {
+          this.executorManager.getOrCreateExecutor(server);
+        } catch (error) {
+          log.error(`Failed to create executor for server ${server.id}:`, error);
+        }
+      }
+      
       void this.notifyReloadNotebooks(e);
     });
   }
@@ -459,6 +477,16 @@ export class AssignmentManager implements vscode.Disposable {
     await this.client.unassign(server.endpoint, signal);
   }
 
+  /**
+   * Gets the command executor for a given server.
+   * 
+   * @param serverId - The ID of the server
+   * @returns The command executor if it exists, undefined otherwise
+   */
+  getExecutor(serverId: string) {
+    return this.executorManager.getExecutor(serverId);
+  }
+
   async getDefaultLabel(
     variant: Variant,
     accelerator?: string,
@@ -560,8 +588,8 @@ export class AssignmentManager implements vscode.Disposable {
       },
     };
     log.info('server assigned ', result);
-    log.info('trying to connect terminal ');
-    new TerminalExecutor(result);
+    
+    // Executor will be created by the assignment change event handler
     return result;
   }
 

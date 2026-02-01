@@ -10,45 +10,10 @@ import {
 } from '@vscode/jupyter-extension';
 import { WebSocket, MessageEvent, ErrorEvent } from 'ws';
 import z from 'zod';
+import { CommandExecutor, CommandResult } from '../../common/command-executor';
 import { Logger, logWithComponent } from '../../common/logging';
 import { GeneralJupyterClient, JupyterClient } from '../../jupyter/client';
 import { convertProtocol } from '../../utils/extras';
-/**
- * Result of a command execution.
- */
-export interface CommandResult {
-  /** Whether the command succeeded */
-  success: boolean;
-  /** Command output (stdout + stderr) */
-  output: string;
-  /** Exit code if available */
-  exitCode?: number;
-  /** Error message if failed */
-  error?: string;
-}
-
-export interface CmdExecutor {
-  /**
-   * Executes the given cmd
-   *
-   * @param cmd - command to execute
-   * @param args - additional arguments
-   */
-  execute(cmd: string, ...args: string[]): Promise<CommandResult>;
-  dispose(): void;
-}
-
-/**
- * Options for command execution.
- */
-export interface ExecuteOptions {
-  /** Timeout in milliseconds (default: 30000) */
-  timeout?: number;
-  /** Expected output pattern to wait for */
-  expectedOutput?: RegExp;
-  /** Whether to show output in real-time */
-  streamOutput?: boolean;
-}
 
 /**
  * Executes commands on Jupyter server via Terminal API.
@@ -62,7 +27,7 @@ const ColabTerminalEvent = z.object({
 });
 export type ColabTerminalEventType = z.infer<typeof ColabTerminalEvent>;
 
-export class TerminalExecutor implements CmdExecutor {
+export class TerminalExecutor implements CommandExecutor {
   // clients for communication with the server
   private terminalWs: WebSocket | null;
   private logger: Logger;
