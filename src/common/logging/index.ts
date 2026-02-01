@@ -119,21 +119,22 @@ export const log: Logger = {
  * Can be used directly after calling `initializeLogger()`.
  */
 export const logWithComponent = (component: string): Logger => {
+  const comp = { component: component.trim() };
   return {
     error: (msg: string, ...args: unknown[]) => {
-      doLog(LogLevel.Error, 'error', msg, 'component', component, ...args);
+      doLog(LogLevel.Error, 'error', msg, comp, ...args);
     },
     warn: (msg: string, ...args: unknown[]) => {
-      doLog(LogLevel.Warning, 'warn', msg, 'component', component, ...args);
+      doLog(LogLevel.Warning, 'warn', msg, comp, ...args);
     },
     info: (msg: string, ...args: unknown[]) => {
-      doLog(LogLevel.Info, 'info', msg, 'component', component, ...args);
+      doLog(LogLevel.Info, 'info', msg, comp, ...args);
     },
     debug: (msg: string, ...args: unknown[]) => {
-      doLog(LogLevel.Debug, 'debug', msg, 'component', component, ...args);
+      doLog(LogLevel.Debug, 'debug', msg, comp, ...args);
     },
     trace: (msg: string, ...args: unknown[]) => {
-      doLog(LogLevel.Trace, 'trace', msg, 'component', component, ...args);
+      doLog(LogLevel.Trace, 'trace', msg, comp, ...args);
     },
   };
 };

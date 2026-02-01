@@ -161,6 +161,10 @@ export async function activate(context: vscode.ExtensionContext) {
       toggleables.forEach((t) => {
         t.on();
       });
+      // Initialize executors for existing servers when authorized
+      void assignmentManager.initializeExecutors().catch((error: unknown) => {
+        log.error('Failed to initialize executors on auth change:', error);
+      });
     } else {
       toggleables.forEach((t) => {
         t.off();

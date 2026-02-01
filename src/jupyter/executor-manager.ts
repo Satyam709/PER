@@ -6,13 +6,13 @@
 
 import { JupyterServer } from '@vscode/jupyter-extension';
 import { Disposable } from 'vscode';
-import { CommandExecutor } from '../../common/command-executor';
-import { Logger, logWithComponent } from '../../common/logging';
-import { TerminalExecutor } from './terminal-executor';
+import { CommandExecutor } from '../common/command-executor';
+import { Logger, logWithComponent } from '../common/logging';
+import { TerminalExecutor } from '../server/colab/terminal-executor';
 
 /**
  * Manages the lifecycle of command executors for Jupyter servers.
- * 
+ *
  * Ensures that:
  * - Each server has at most one executor instance
  * - Executors are properly disposed when servers are disconnected
@@ -28,7 +28,7 @@ export class ExecutorManager implements Disposable {
 
   /**
    * Gets or creates an executor for the given server.
-   * 
+   *
    * @param server - The Jupyter server to get an executor for
    * @returns The command executor for the server
    */
@@ -47,16 +47,22 @@ export class ExecutorManager implements Disposable {
     try {
       const executor = new TerminalExecutor(server);
       this.executors.set(serverId, executor);
+      this.logger.info(`Executor map :`, {
+        vals: Array.from(this.executors.keys()).join(', '),
+      });
       return executor;
     } catch (error) {
-      this.logger.error(`Failed to create executor for server ${serverId}:`, error);
+      this.logger.error(
+        `Failed to create executor for server ${serverId}:`,
+        error,
+      );
       throw error;
     }
   }
 
   /**
    * Gets an existing executor for the given server ID.
-   * 
+   *
    * @param serverId - The server ID
    * @returns The executor if it exists, undefined otherwise
    */
@@ -66,7 +72,7 @@ export class ExecutorManager implements Disposable {
 
   /**
    * Removes and disposes the executor for the given server.
-   * 
+   *
    * @param serverId - The ID of the server whose executor should be removed
    */
   removeExecutor(serverId: string): void {
@@ -76,7 +82,10 @@ export class ExecutorManager implements Disposable {
       try {
         executor.dispose();
       } catch (error) {
-        this.logger.error(`Error disposing executor for server ${serverId}:`, error);
+        this.logger.error(
+          `Error disposing executor for server ${serverId}:`,
+          error,
+        );
       }
       this.executors.delete(serverId);
     }
@@ -84,7 +93,7 @@ export class ExecutorManager implements Disposable {
 
   /**
    * Checks if an executor exists for the given server.
-   * 
+   *
    * @param serverId - The server ID to check
    * @returns True if an executor exists, false otherwise
    */
@@ -94,7 +103,7 @@ export class ExecutorManager implements Disposable {
 
   /**
    * Gets the number of active executors.
-   * 
+   *
    * @returns The count of active executors
    */
   getExecutorCount(): number {
@@ -105,13 +114,18 @@ export class ExecutorManager implements Disposable {
    * Disposes all executors and clears the registry.
    */
   dispose(): void {
-    this.logger.info(`Disposing all executors (${String(this.executors.size)} active)`);
+    this.logger.info(
+      `Disposing all executors (${String(this.executors.size)} active)`,
+    );
     for (const [serverId, executor] of this.executors.entries()) {
       try {
         this.logger.debug(`Disposing executor for server: ${serverId}`);
         executor.dispose();
       } catch (error) {
-        this.logger.error(`Error disposing executor for server ${serverId}:`, error);
+        this.logger.error(
+          `Error disposing executor for server ${serverId}:`,
+          error,
+        );
       }
     }
     this.executors.clear();

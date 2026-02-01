@@ -31,7 +31,6 @@ import {
   NotFoundError,
   TooManyAssignmentsError,
 } from '../server/colab/client';
-import { ExecutorManager } from '../server/colab/executor-manager';
 import {
   COLAB_CLIENT_AGENT_HEADER,
   COLAB_RUNTIME_PROXY_TOKEN_HEADER,
@@ -39,6 +38,7 @@ import {
 import { REMOVE_SERVER } from '../server/commands/constants';
 import { ProxiedJupyterClient } from './client';
 import { colabProxyWebSocket } from './colab-proxy-web-socket';
+import { ExecutorManager } from './executor-manager';
 import {
   AllServers,
   ColabAssignedServer,
@@ -475,6 +475,45 @@ export class AssignmentManager implements vscode.Disposable {
       );
     }
     await this.client.unassign(server.endpoint, signal);
+  }
+
+  /**
+   * Initializes executors for all existing assigned servers.
+   *
+   * This should be called after extension activation when the user is
+   * authorized. It ensures that terminal connections are available for servers
+   * that were loaded from storage (e.g., after extension reload).
+   *
+   * @param signal - Optional abort signal to cancel initialization
+   */
+  async initializeExecutors(signal?: AbortSignal): Promise<void> {
+    log.info('Initializing executors for existing servers');
+    
+    try {
+      const servers = await this.getServers('extension', signal);
+      log.debug(`Found ${String(servers.length)} existing servers`);
+      
+      let successCount = 0;
+      let failureCount = 0;
+      
+      for (const server of servers) {
+        try {
+          this.executorManager.getOrCreateExecutor(server);
+          successCount++;
+          log.debug(`Executor initialized for server: ${server.id}`);
+        } catch (error) {
+          failureCount++;
+          log.error(`Failed to initialize executor for server ${server.id}:`, error);
+        }
+      }
+      
+      log.info(
+        `Executor initialization complete: ${String(successCount)} succeeded, ${String(failureCount)} failed`,
+      );
+    } catch (error: unknown) {
+      log.error('Failed to initialize executors:', error);
+      throw error;
+    }
   }
 
   /**
