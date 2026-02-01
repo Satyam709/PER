@@ -10,11 +10,11 @@ import sinon, { SinonFakeTimers, SinonStubbedInstance } from 'sinon';
 import {
   AssignmentChangeEvent,
   AssignmentManager,
-} from '../jupyter/assignments';
-import { ColabAssignedServer } from '../jupyter/servers';
-import { ControllableAsyncToggle } from '../test/helpers/async';
-import { TestEventEmitter } from '../test/helpers/events';
-import { TestUri } from '../test/helpers/uri';
+} from '../../jupyter/assignments';
+import { ColabAssignedServer } from '../../jupyter/servers';
+import { ControllableAsyncToggle } from '../../test/helpers/async';
+import { TestEventEmitter } from '../../test/helpers/events';
+import { TestUri } from '../../test/helpers/uri';
 import { Variant } from './api';
 import { NotFoundError } from './client';
 import {

@@ -5,7 +5,7 @@
  */
 
 import vscode, { QuickPickItem } from 'vscode';
-import { InputStep, MultiStepInput } from '../common/multi-step-quickpick';
+import { InputStep, MultiStepInput } from '../../common/multi-step-quickpick';
 import { StorageConfigManager } from './config';
 import { RcloneManager } from './rclone-manager';
 

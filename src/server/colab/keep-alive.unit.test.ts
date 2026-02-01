@@ -7,17 +7,17 @@
 import { randomUUID } from 'crypto';
 import { expect } from 'chai';
 import sinon, { SinonFakeTimers, SinonStubbedInstance } from 'sinon';
-import { AssignmentManager } from '../jupyter/assignments';
-import { JupyterClient, ProxiedJupyterClient } from '../jupyter/client';
-import { Kernel } from '../jupyter/client/generated';
-import { ColabAssignedServer } from '../jupyter/servers';
-import { TestCancellationTokenSource } from '../test/helpers/cancellation';
+import { AssignmentManager } from '../../jupyter/assignments';
+import { JupyterClient, ProxiedJupyterClient } from '../../jupyter/client';
+import { Kernel } from '../../jupyter/client/generated';
+import { ColabAssignedServer } from '../../jupyter/servers';
+import { TestCancellationTokenSource } from '../../test/helpers/cancellation';
 import {
   createJupyterClientStub,
   JupyterClientStub,
-} from '../test/helpers/jupyter';
-import { TestUri } from '../test/helpers/uri';
-import { newVsCodeStub, VsCodeStub } from '../test/helpers/vscode';
+} from '../../test/helpers/jupyter';
+import { TestUri } from '../../test/helpers/uri';
+import { newVsCodeStub, VsCodeStub } from '../../test/helpers/vscode';
 import { Variant } from './api';
 import { ColabClient } from './client';
 import {

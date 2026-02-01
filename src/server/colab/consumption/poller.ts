@@ -9,8 +9,8 @@ import {
   OverrunPolicy,
   SequentialTaskRunner,
   StartMode,
-} from '../../common/task-runner';
-import { Toggleable } from '../../common/toggleable';
+} from '../../../common/task-runner';
+import { Toggleable } from '../../../common/toggleable';
 import { CcuInfo } from '../api';
 import { ColabClient } from '../client';
 

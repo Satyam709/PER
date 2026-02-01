@@ -5,15 +5,17 @@
  */
 
 import vscode, { QuickPickItem } from 'vscode';
-import { InputFlowAction } from '../../common/multi-step-quickpick';
-import { AssignmentManager } from '../../jupyter/assignments';
+import { InputFlowAction } from '../../../common/multi-step-quickpick';
+import { AssignmentManager } from '../../../jupyter/assignments';
 import {
   COLAB_SUBMENU,
-  CUSTOM_INSTANCE,
-  MOUNT_SERVER,
   OPEN_COLAB_WEB,
-  REMOVE_SERVER,
 } from './constants';
+import { CUSTOM_INSTANCE } from '../../custom-instance/commands/constants';
+import {
+  MOUNT_SERVER,
+  REMOVE_SERVER,
+} from '../../commands/constants';
 import { openColabWeb } from './external';
 import { commandThemeIcon } from './utils';
 

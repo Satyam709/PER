@@ -22,20 +22,20 @@ import {
   SubscriptionTier,
   Shape,
   isHighMemOnlyAccelerator,
-} from '../colab/api';
+} from '../server/colab/api';
 import {
   ColabClient,
   DenylistedError,
   InsufficientQuotaError,
   NotFoundError,
   TooManyAssignmentsError,
-} from '../colab/client';
-import { REMOVE_SERVER } from '../colab/commands/constants';
+} from '../server/colab/client';
+import { REMOVE_SERVER } from '../server/commands/constants';
 import {
   COLAB_CLIENT_AGENT_HEADER,
   COLAB_RUNTIME_PROXY_TOKEN_HEADER,
-} from '../colab/headers';
-import { TerminalExecutor } from '../colab/terminal-executor';
+} from '../server/colab/headers';
+import { TerminalExecutor } from '../server/colab/terminal-executor';
 import { log } from '../common/logging';
 import { ProxiedJupyterClient } from './client';
 import { colabProxyWebSocket } from './colab-proxy-web-socket';

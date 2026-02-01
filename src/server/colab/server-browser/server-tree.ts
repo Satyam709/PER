@@ -16,12 +16,12 @@ import {
   Uri,
   workspace,
 } from 'vscode';
-import { AuthChangeEvent } from '../../auth/types';
-import { log } from '../../common/logging';
+import { AuthChangeEvent } from '../../../auth/types';
+import { log } from '../../../common/logging';
 import {
   AssignmentChangeEvent,
   AssignmentManager,
-} from '../../jupyter/assignments';
+} from '../../../jupyter/assignments';
 import { ServerItem } from './server-item';
 
 /**

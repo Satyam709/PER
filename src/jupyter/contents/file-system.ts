@@ -16,7 +16,7 @@ import vscode, {
   Uri,
   WorkspaceFoldersChangeEvent,
 } from 'vscode';
-import { buildColabFileUri } from '../../colab/files';
+import { buildColabFileUri } from '../../server/colab/files';
 import { log } from '../../common/logging';
 import { traceMethod } from '../../common/logging/decorators';
 import {

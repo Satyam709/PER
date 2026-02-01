@@ -5,7 +5,7 @@
  */
 
 import vscode, { ThemeIcon } from 'vscode';
-import { Command } from './constants';
+import { Command } from '../../commands/constants';
 
 /**
  * Build a label that's prefixed with the provided icon.

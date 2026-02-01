@@ -16,19 +16,19 @@ import {
   SubscriptionState,
   SubscriptionTier,
   Variant,
-} from '../colab/api';
+} from '../server/colab/api';
 import {
   ColabClient,
   DenylistedError,
   InsufficientQuotaError,
   NotFoundError,
   TooManyAssignmentsError,
-} from '../colab/client';
-import { REMOVE_SERVER } from '../colab/commands/constants';
+} from '../server/colab/client';
+import { REMOVE_SERVER } from '../server/colab/commands/constants';
 import {
   COLAB_CLIENT_AGENT_HEADER,
   COLAB_RUNTIME_PROXY_TOKEN_HEADER,
-} from '../colab/headers';
+} from '../server/colab/headers';
 import { TestEventEmitter } from '../test/helpers/events';
 import {
   createJupyterClientStub,

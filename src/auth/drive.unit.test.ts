@@ -7,7 +7,7 @@
 import { expect } from 'chai';
 import sinon, { SinonStubbedInstance } from 'sinon';
 import { Uri } from 'vscode';
-import { ColabClient } from '../colab/client';
+import { ColabClient } from '../server/colab/client';
 import { ColabAssignedServer } from '../jupyter/servers';
 import { newVsCodeStub, VsCodeStub } from '../test/helpers/vscode';
 import { handleDriveFsAuth } from './drive';

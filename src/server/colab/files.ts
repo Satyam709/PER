@@ -5,7 +5,7 @@
  */
 
 import vscode, { Uri } from 'vscode';
-import { ColabAssignedServer } from '../jupyter/servers';
+import { ColabAssignedServer } from '../../jupyter/servers';
 
 /**
  * Creates a URI for a file on a Colab server using the 'per' scheme.

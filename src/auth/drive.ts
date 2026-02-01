@@ -5,7 +5,7 @@
  */
 
 import vscode from 'vscode';
-import { ColabClient } from '../colab/client';
+import { ColabClient } from '../server/colab/client';
 import { log } from '../common/logging';
 import { ColabAssignedServer } from '../jupyter/servers';
 

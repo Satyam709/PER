@@ -5,9 +5,9 @@
  */
 
 import vscode from 'vscode';
-import { AssignmentManager } from '../../jupyter/assignments';
-import { StorageConfigManager } from '../../cloudstorage/config';
-import { StorageConfigPicker } from '../../cloudstorage/storage-config-picker';
+import { AssignmentManager } from '../../../jupyter/assignments';
+import { StorageConfigManager } from '../../storage/config';
+import { StorageConfigPicker } from '../../storage/storage-config-picker';
 
 /**
  * Configure cloud storage for the current workspace.

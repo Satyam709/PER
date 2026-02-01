@@ -5,9 +5,9 @@
  */
 
 import vscode, { QuickPickItem } from 'vscode';
-import { InputStep, MultiStepInput } from '../common/multi-step-quickpick';
-import { AssignmentManager } from '../jupyter/assignments';
-import { ColabServerDescriptor } from '../jupyter/servers';
+import { InputStep, MultiStepInput } from '../../common/multi-step-quickpick';
+import { AssignmentManager } from '../../jupyter/assignments';
+import { ColabServerDescriptor } from '../../jupyter/servers';
 import {
   Variant,
   variantToMachineType,

@@ -7,13 +7,13 @@
 import { expect } from 'chai';
 import * as sinon from 'sinon';
 import { InputBox, QuickPick, QuickPickItem } from 'vscode';
-import { AssignmentManager } from '../jupyter/assignments';
-import { DEFAULT_CPU_SERVER } from '../jupyter/servers';
+import { AssignmentManager } from '../../jupyter/assignments';
+import { DEFAULT_CPU_SERVER } from '../../jupyter/servers';
 import {
   buildInputBoxStub,
   buildQuickPickStub,
-} from '../test/helpers/quick-input';
-import { newVsCodeStub, VsCodeStub } from '../test/helpers/vscode';
+} from '../../test/helpers/quick-input';
+import { newVsCodeStub, VsCodeStub } from '../../test/helpers/vscode';
 import { Variant, Shape } from './api';
 import { ServerPicker } from './server-picker';
 

@@ -6,7 +6,7 @@
 
 import vscode from 'vscode';
 import { z } from 'zod';
-import { PROVIDER_ID } from '../config/constants';
+import { PROVIDER_ID } from '../../config/constants';
 
 const STORAGE_CONFIG_KEY = `${PROVIDER_ID}.storage_config`;
 

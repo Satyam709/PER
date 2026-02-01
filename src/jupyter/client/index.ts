@@ -9,7 +9,7 @@ import { Uri, Event, Disposable } from 'vscode';
 import {
   COLAB_CLIENT_AGENT_HEADER,
   COLAB_RUNTIME_PROXY_TOKEN_HEADER,
-} from '../../colab/headers';
+} from '../../server/colab/headers';
 import { Logger, logWithComponent } from '../../common/logging';
 import { AssignmentChangeEvent } from '../assignments';
 import { ColabAssignedServer } from '../servers';

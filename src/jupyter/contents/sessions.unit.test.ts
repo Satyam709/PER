@@ -14,8 +14,8 @@ import {
   WorkspaceConfiguration,
 } from 'vscode';
 import { AuthChangeEvent } from '../../auth/types';
-import { Variant } from '../../colab/api';
-import { COLAB_RUNTIME_PROXY_TOKEN_HEADER } from '../../colab/headers';
+import { Variant } from '../../server/colab/api';
+import { COLAB_RUNTIME_PROXY_TOKEN_HEADER } from '../../server/colab/headers';
 import { Deferred } from '../../test/helpers/async';
 import { TestEventEmitter } from '../../test/helpers/events';
 import {

@@ -5,11 +5,12 @@
  */
 
 import vscode, { QuickPickItem } from 'vscode';
-import { log } from '../../common/logging';
-import { AssignmentManager } from '../../jupyter/assignments';
-import { ColabAssignedServer } from '../../jupyter/servers';
+import { log } from '../../../common/logging';
+import { AssignmentManager } from '../../../jupyter/assignments';
+import { ColabAssignedServer } from '../../../jupyter/servers';
+import { UPLOAD } from '../../commands/constants'; // TODO will refactor
+//  later to support server view in other places than colab
 import { buildColabFileUri } from '../files';
-import { UPLOAD } from './constants';
 
 /**
  * Uploads one or more files or directories to a selected Colab server.

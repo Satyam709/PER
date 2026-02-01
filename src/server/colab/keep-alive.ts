@@ -7,14 +7,14 @@
 import { UUID } from 'crypto';
 import { Disposable } from 'vscode';
 import vscode from 'vscode';
-import { log } from '../common/logging';
-import { traceMethod } from '../common/logging/decorators';
-import { OverrunPolicy, SequentialTaskRunner } from '../common/task-runner';
-import { Toggleable } from '../common/toggleable';
-import { AssignmentManager } from '../jupyter/assignments';
-import { ProxiedJupyterClient } from '../jupyter/client';
-import { Kernel } from '../jupyter/client/generated';
-import { ColabAssignedServer } from '../jupyter/servers';
+import { log } from '../../common/logging';
+import { traceMethod } from '../../common/logging/decorators';
+import { OverrunPolicy, SequentialTaskRunner } from '../../common/task-runner';
+import { Toggleable } from '../../common/toggleable';
+import { AssignmentManager } from '../../jupyter/assignments';
+import { ProxiedJupyterClient } from '../../jupyter/client';
+import { Kernel } from '../../jupyter/client/generated';
+import { ColabAssignedServer } from '../../jupyter/servers';
 import { ColabClient } from './client';
 
 interface Config {

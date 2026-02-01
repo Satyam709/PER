@@ -6,13 +6,13 @@
 
 import { UUID } from 'crypto';
 import { Disposable } from 'vscode';
-import { log } from '../common/logging';
-import { AsyncToggle } from '../common/toggleable';
+import { log } from '../../common/logging';
+import { AsyncToggle } from '../../common/toggleable';
 import {
   AssignmentChangeEvent,
   AssignmentManager,
-} from '../jupyter/assignments';
-import { ColabAssignedServer } from '../jupyter/servers';
+} from '../../jupyter/assignments';
+import { ColabAssignedServer } from '../../jupyter/servers';
 import { NotFoundError } from './client';
 
 /* The buffer we give to refresh the token, before it actually expires. */

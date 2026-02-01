@@ -9,10 +9,10 @@ import { expect } from 'chai';
 import fetch, { Response } from 'node-fetch';
 import { SinonStub, SinonMatcher } from 'sinon';
 import * as sinon from 'sinon';
-import { Session } from '../jupyter/client/generated';
-import { ColabAssignedServer } from '../jupyter/servers';
-import { TestUri } from '../test/helpers/uri';
-import { uuidToWebSafeBase64 } from '../utils/uuid';
+import { Session } from '../../jupyter/client/generated';
+import { ColabAssignedServer } from '../../jupyter/servers';
+import { TestUri } from '../../test/helpers/uri';
+import { uuidToWebSafeBase64 } from '../../utils/uuid';
 import {
   CcuInfo,
   Assignment,

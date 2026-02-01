@@ -9,11 +9,11 @@ import vscode, { Disposable, ConfigurationChangeEvent } from 'vscode';
 import WebSocket from 'ws';
 import { z } from 'zod';
 import { handleDriveFsAuth } from '../auth/drive';
-import { ColabClient } from '../colab/client';
+import { ColabClient } from '../server/colab/client';
 import {
   COLAB_CLIENT_AGENT_HEADER,
   COLAB_RUNTIME_PROXY_TOKEN_HEADER,
-} from '../colab/headers';
+} from '../server/colab/headers';
 import { log } from '../common/logging';
 import { ColabAssignedServer } from './servers';
 

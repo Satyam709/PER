@@ -8,41 +8,6 @@ import { Jupyter } from '@vscode/jupyter-extension';
 import vscode, { Disposable } from 'vscode';
 import { AccountSwitcher } from './auth/account-switcher';
 import { TokenBridge } from './auth/token-bridge';
-import { StorageConfigManager } from './cloudstorage/config';
-import { ColabClient } from './colab/client';
-import {
-  COLAB_TOOLBAR,
-  COLAB_SUBMENU,
-  CUSTOM_INSTANCE,
-  UPLOAD,
-  MOUNT_SERVER,
-  REMOVE_SERVER,
-  SIGN_OUT,
-  CONFIGURE_STORAGE,
-  SYNC_STORAGE,
-} from './colab/commands/constants';
-import { upload } from './colab/commands/files';
-import {
-  notebookToolbar,
-  colabSubmenu,
-  customInstanceSubmenu,
-} from './colab/commands/notebook';
-import { mountServer, removeServer } from './colab/commands/server';
-import { configureStorage, syncStorage } from './colab/commands/storage';
-import { ConnectionRefreshController } from './colab/connection-refresher';
-import { ConsumptionNotifier } from './colab/consumption/notifier';
-import { ConsumptionPoller } from './colab/consumption/poller';
-import { ServerKeepAliveController } from './colab/keep-alive';
-import {
-  deleteFile,
-  download,
-  newFile,
-  newFolder,
-  renameFile,
-} from './colab/server-browser/commands';
-import { ServerItem } from './colab/server-browser/server-item';
-import { ServerTreeProvider } from './colab/server-browser/server-tree';
-import { ServerPicker } from './colab/server-picker';
 import { CONFIG } from './colab-config';
 import { initializeLogger, log } from './common/logging';
 import { Toggleable } from './common/toggleable';
@@ -53,6 +18,47 @@ import { JupyterConnectionManager } from './jupyter/contents/sessions';
 import { getJupyterApi } from './jupyter/jupyter-extension';
 import { ColabJupyterServerProvider } from './jupyter/provider';
 import { ServerStorage } from './jupyter/storage';
+import { ColabClient } from './server/colab/client';
+import {
+  COLAB_TOOLBAR,
+  COLAB_SUBMENU,
+} from './server/colab/commands/constants';
+import { upload } from './server/colab/commands/files';
+import {
+  notebookToolbar,
+  colabSubmenu,
+  customInstanceSubmenu,
+} from './server/colab/commands/notebook';
+import { mountServer, removeServer } from './server/colab/commands/server';
+import { ConnectionRefreshController } from './server/colab/connection-refresher';
+import { ConsumptionNotifier } from './server/colab/consumption/notifier';
+import { ConsumptionPoller } from './server/colab/consumption/poller';
+import { ServerKeepAliveController } from './server/colab/keep-alive';
+import {
+  deleteFile,
+  download,
+  newFile,
+  newFolder,
+  renameFile,
+} from './server/colab/server-browser/commands';
+import { ServerItem } from './server/colab/server-browser/server-item';
+import { ServerTreeProvider } from './server/colab/server-browser/server-tree';
+import { ServerPicker } from './server/colab/server-picker';
+import {
+  UPLOAD,
+  MOUNT_SERVER,
+  REMOVE_SERVER,
+  SIGN_OUT,
+} from './server/commands/constants';
+import {
+  CUSTOM_INSTANCE,
+} from './server/custom-instance/commands/constants';
+import {
+  CONFIGURE_STORAGE,
+  SYNC_STORAGE,
+} from './server/storage/commands/constants';
+import { configureStorage, syncStorage } from './server/storage/commands/storage';
+import { StorageConfigManager } from './server/storage/config';
 import { ExtensionUriHandler } from './system/uri';
 
 // Called when the extension is activated.

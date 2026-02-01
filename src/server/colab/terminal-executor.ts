@@ -10,9 +10,9 @@ import {
 } from '@vscode/jupyter-extension';
 import { WebSocket, MessageEvent, ErrorEvent } from 'ws';
 import z from 'zod';
-import { Logger, logWithComponent } from '../common/logging';
-import { GeneralJupyterClient, JupyterClient } from '../jupyter/client';
-import { convertProtocol } from '../utils/extras';
+import { Logger, logWithComponent } from '../../common/logging';
+import { GeneralJupyterClient, JupyterClient } from '../../jupyter/client';
+import { convertProtocol } from '../../utils/extras';
 /**
  * Result of a command execution.
  */

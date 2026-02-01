@@ -7,8 +7,8 @@
 import { randomUUID } from 'crypto';
 import { expect } from 'chai';
 import { describe } from 'mocha';
-import { TestUri } from '../test/helpers/uri';
-import { newVsCodeStub, VsCodeStub } from '../test/helpers/vscode';
+import { TestUri } from '../../test/helpers/uri';
+import { newVsCodeStub, VsCodeStub } from '../../test/helpers/vscode';
 import { Variant } from './api';
 import { buildColabFileUri } from './files';
 

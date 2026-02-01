@@ -8,10 +8,10 @@ import { UUID } from 'crypto';
 import * as https from 'https';
 import fetch, { Request, RequestInit, Headers } from 'node-fetch';
 import { z } from 'zod';
-import { traceMethod } from '../common/logging/decorators';
-import { JupyterClient } from '../jupyter/client';
-import { Session } from '../jupyter/client/generated';
-import { uuidToWebSafeBase64 } from '../utils/uuid';
+import { traceMethod } from '../../common/logging/decorators';
+import { JupyterClient } from '../../jupyter/client';
+import { Session } from '../../jupyter/client/generated';
+import { uuidToWebSafeBase64 } from '../../utils/uuid';
 import {
   Assignment,
   CcuInfo,

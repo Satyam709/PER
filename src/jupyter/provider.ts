@@ -1,6 +1,7 @@
 /**
  * @license
  * Copyright 2025 Google LLC
+ * Copyright 2026 Satyam
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -15,23 +16,23 @@ import {
 import { CancellationToken, Disposable, Event, ProviderResult } from 'vscode';
 import vscode from 'vscode';
 import { AuthChangeEvent } from '../auth/types';
-import { ColabClient } from '../colab/client';
-import {
-  AUTO_CONNECT,
-  COLAB_SUBMENU,
-  Command,
-  CUSTOM_INSTANCE,
-  NEW_SERVER,
-  OPEN_COLAB_WEB,
-  SIGN_IN_VIEW_EXISTING,
-} from '../colab/commands/constants';
-import { openColabWeb } from '../colab/commands/external';
-import { buildIconLabel, stripIconLabel } from '../colab/commands/utils';
-import { ServerPicker } from '../colab/server-picker';
 import { LatestCancelable } from '../common/async';
 import { log } from '../common/logging';
 import { traceMethod } from '../common/logging/decorators';
 import { InputFlowAction } from '../common/multi-step-quickpick';
+import { ColabClient } from '../server/colab/client';
+import {
+  AUTO_CONNECT,
+  COLAB_SUBMENU,
+  Command,
+  NEW_SERVER,
+  OPEN_COLAB_WEB,
+  SIGN_IN_VIEW_EXISTING,
+} from '../server/colab/commands/constants';
+import { openColabWeb } from '../server/colab/commands/external';
+import { buildIconLabel, stripIconLabel } from '../server/colab/commands/utils';
+import { ServerPicker } from '../server/colab/server-picker';
+import { CUSTOM_INSTANCE } from '../server/custom-instance/commands/constants';
 import { isUUID } from '../utils/uuid';
 import { AssignmentChangeEvent, AssignmentManager } from './assignments';
 
@@ -172,11 +173,14 @@ export class ColabJupyterServerProvider
           return await this.showColabSubmenu();
         case CUSTOM_INSTANCE.label:
           // Close the quick pick first, then show the message
-          await this.vs.commands.executeCommand('workbench.action.closeQuickOpen');
+          await this.vs.commands.executeCommand(
+            'workbench.action.closeQuickOpen',
+          );
           await this.vs.window.showInformationMessage(
             'Custom Instance feature is coming soon!',
           );
-          return;
+          // Throw CancellationError to properly abort kernel scanning
+          throw new this.vs.CancellationError();
         default:
           throw new Error('Unexpected command');
       }
@@ -202,11 +206,7 @@ export class ColabJupyterServerProvider
    * Show the Colab submenu with available Colab options.
    */
   private async showColabSubmenu(): Promise<JupyterServer | undefined> {
-    const colabCommands: Command[] = [
-      AUTO_CONNECT,
-      NEW_SERVER,
-      OPEN_COLAB_WEB,
-    ];
+    const colabCommands: Command[] = [AUTO_CONNECT, NEW_SERVER, OPEN_COLAB_WEB];
 
     const items = colabCommands.map((c) => ({
       label: buildIconLabel(c),
