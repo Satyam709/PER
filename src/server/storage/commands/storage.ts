@@ -8,6 +8,10 @@ import vscode from 'vscode';
 import { AssignmentManager } from '../../../jupyter/assignments';
 import { StorageConfigManager } from '../../storage/config';
 import { StorageConfigPicker } from '../../storage/storage-config-picker';
+import {
+  StorageIntegration,
+  StorageStatus,
+} from '../../storage/storage-integration';
 
 /**
  * Configure cloud storage for the current workspace.
@@ -17,7 +21,58 @@ export async function configureStorage(
   storageConfigManager: StorageConfigManager,
 ): Promise<void> {
   const picker = new StorageConfigPicker(vs, storageConfigManager);
-  await picker.prompt();
+  const configured = await picker.prompt();
+
+  if (configured) {
+    await vs.window.showInformationMessage(
+      'Storage configured. Connect to a server to set up synchronization.',
+    );
+  }
+}
+
+/**
+ * Setup storage on a server.
+ */
+export async function setupStorageOnServer(
+  vs: typeof vscode,
+  assignmentManager: AssignmentManager,
+  storageIntegration: StorageIntegration,
+): Promise<void> {
+  const server = await assignmentManager.latestServer();
+  if (!server) {
+    await vs.window.showWarningMessage('No active server found.');
+    return;
+  }
+
+  const executor = assignmentManager.getExecutor(server.id);
+  if (!executor) {
+    await vs.window.showErrorMessage(
+      'Server executor not available. Try reconnecting to the server.',
+    );
+    return;
+  }
+
+  await vs.window.withProgress(
+    {
+      location: vs.ProgressLocation.Notification,
+      title: 'Setting up storage on server',
+      cancellable: false,
+    },
+    async (progress) => {
+      progress.report({ message: 'Installing rclone...' });
+      const result = await storageIntegration.setupOnServer(server, executor);
+
+      if (result.success) {
+        await vs.window.showInformationMessage(
+          result.message ?? 'Storage setup complete',
+        );
+      } else {
+        await vs.window.showErrorMessage(
+          `Storage setup failed: ${result.error ?? result.message ?? 'Unknown error'}`,
+        );
+      }
+    },
+  );
 }
 
 /**
@@ -25,26 +80,89 @@ export async function configureStorage(
  */
 export async function syncStorage(
   vs: typeof vscode,
-  _assignmentManager: AssignmentManager,
-  storageConfigManager: StorageConfigManager,
+  assignmentManager: AssignmentManager,
+  storageIntegration: StorageIntegration,
 ): Promise<void> {
-  // Check if storage is configured
-  const isConfigured = await storageConfigManager.isConfigured();
-  if (!isConfigured) {
-    const configure = 'Configure Storage';
-    const choice = await vs.window.showInformationMessage(
-      'Storage is not configured for this workspace.',
-      configure,
+  const server = await assignmentManager.latestServer();
+  if (!server) {
+    await vs.window.showWarningMessage('No active server found.');
+    return;
+  }
+
+  const executor = assignmentManager.getExecutor(server.id);
+  if (!executor) {
+    await vs.window.showErrorMessage(
+      'Server executor not available. Try reconnecting to the server.',
     );
-    if (choice === configure) {
-      await configureStorage(vs, storageConfigManager);
+    return;
+  }
+
+  const status = storageIntegration.getStatus(server.id);
+  if (status !== StorageStatus.READY) {
+    const setup = 'Setup Storage';
+    const choice = await vs.window.showWarningMessage(
+      `Storage is not ready (status: ${status}). Would you like to set it up?`,
+      setup,
+    );
+    if (choice === setup) {
+      await setupStorageOnServer(vs, assignmentManager, storageIntegration);
     }
     return;
   }
 
-  // TODO: Implement actual sync logic in Phase 4
-  // For now, just show a placeholder message
-  await vs.window.showInformationMessage(
-    'Storage sync will be implemented in Phase 4',
+  await vs.window.withProgress(
+    {
+      location: vs.ProgressLocation.Notification,
+      title: 'Syncing storage',
+      cancellable: false,
+    },
+    async () => {
+      const result = await storageIntegration.syncNow(server, executor);
+
+      if (result.success) {
+        await vs.window.showInformationMessage(
+          result.message ?? 'Sync complete',
+        );
+      } else {
+        await vs.window.showErrorMessage(
+          `Sync failed: ${result.error ?? result.message ?? 'Unknown error'}`,
+        );
+      }
+    },
   );
+}
+
+/**
+ * Validate storage setup on the current server.
+ */
+export async function validateStorageSetup(
+  vs: typeof vscode,
+  assignmentManager: AssignmentManager,
+  storageIntegration: StorageIntegration,
+): Promise<void> {
+  const server = await assignmentManager.latestServer();
+  if (!server) {
+    await vs.window.showWarningMessage('No active server found.');
+    return;
+  }
+
+  const executor = assignmentManager.getExecutor(server.id);
+  if (!executor) {
+    await vs.window.showErrorMessage(
+      'Server executor not available. Try reconnecting to the server.',
+    );
+    return;
+  }
+
+  const result = await storageIntegration.validateSetup(server, executor);
+
+  if (result.success) {
+    await vs.window.showInformationMessage(
+      `✓ ${result.message ?? 'Storage setup is valid'}`,
+    );
+  } else {
+    await vs.window.showWarningMessage(
+      `✗ ${result.error ?? result.message ?? 'Validation failed'}`,
+    );
+  }
 }

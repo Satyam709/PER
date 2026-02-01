@@ -57,8 +57,15 @@ import {
   CONFIGURE_STORAGE,
   SYNC_STORAGE,
 } from './server/storage/commands/constants';
-import { configureStorage, syncStorage } from './server/storage/commands/storage';
+import {
+  configureStorage,
+  setupStorageOnServer,
+  syncStorage,
+  validateStorageSetup,
+} from './server/storage/commands/storage';
 import { StorageConfigManager } from './server/storage/config';
+import { StorageStatusBar } from './server/storage/status-bar';
+import { StorageIntegration } from './server/storage/storage-integration';
 import { ExtensionUriHandler } from './system/uri';
 
 // Called when the extension is activated.
@@ -116,6 +123,10 @@ export async function activate(context: vscode.ExtensionContext) {
     context.secrets,
     context.workspaceState,
   );
+  const storageIntegration = new StorageIntegration(
+    vscode,
+    storageConfigManager,
+  );
   const assignmentManager = new AssignmentManager(
     vscode,
     colabClient,
@@ -148,6 +159,14 @@ export async function activate(context: vscode.ExtensionContext) {
     assignmentManager,
   );
   const consumptionMonitor = watchConsumption(colabClient);
+  
+  // Create storage status bar
+  const storageStatusBar = new StorageStatusBar(
+    vscode,
+    assignmentManager,
+    storageIntegration,
+    storageConfigManager,
+  );
 
   // Create a simple toggle controller for auth-dependent features
   const whileAuthorizedToggle = authEvent((e) => {
@@ -207,10 +226,19 @@ export async function activate(context: vscode.ExtensionContext) {
     keepServersAlive,
     ...consumptionMonitor.disposables,
     whileAuthorizedToggle,
+    storageIntegration,
+    storageStatusBar,
     ...registerCommands(
       tokenBridge,
       assignmentManager,
       fs,
+      storageConfigManager,
+      storageIntegration,
+    ),
+    ...setupStorageIntegration(
+      vscode,
+      assignmentManager,
+      storageIntegration,
       storageConfigManager,
     ),
   );
@@ -254,6 +282,7 @@ function registerCommands(
   assignmentManager: AssignmentManager,
   fs: ContentsFileSystemProvider,
   storageConfigManager: StorageConfigManager,
+  storageIntegration: StorageIntegration,
 ): Disposable[] {
   return [
     vscode.commands.registerCommand(SIGN_OUT.id, async () => {
@@ -291,7 +320,20 @@ function registerCommands(
       await configureStorage(vscode, storageConfigManager);
     }),
     vscode.commands.registerCommand(SYNC_STORAGE.id, async () => {
-      await syncStorage(vscode, assignmentManager, storageConfigManager);
+      await syncStorage(vscode, assignmentManager, storageIntegration);
+    }),
+    vscode.commands.registerCommand('per.storage.setupServer', async () => {
+      await setupStorageOnServer(vscode, assignmentManager, storageIntegration);
+    }),
+    vscode.commands.registerCommand('per.storage.syncNow', async () => {
+      await syncStorage(vscode, assignmentManager, storageIntegration);
+    }),
+    vscode.commands.registerCommand('per.storage.validateSetup', async () => {
+      await validateStorageSetup(
+        vscode,
+        assignmentManager,
+        storageIntegration,
+      );
     }),
     vscode.commands.registerCommand(COLAB_TOOLBAR.id, async () => {
       await notebookToolbar(vscode, assignmentManager);
@@ -333,4 +375,89 @@ function registerCommands(
       },
     ),
   ];
+}
+
+/**
+ * Setup automatic storage integration on server assignment changes.
+ */
+function setupStorageIntegration(
+  vs: typeof vscode,
+  assignmentManager: AssignmentManager,
+  storageIntegration: StorageIntegration,
+  storageConfigManager: StorageConfigManager,
+): Disposable[] {
+  const disposables: Disposable[] = [];
+
+  // Auto-setup storage when servers are added (if enabled)
+  const assignmentListener = assignmentManager.onDidAssignmentsChange((e) => {
+    void (async () => {
+      // Check if auto-sync is enabled
+      const autoSync = vs.workspace
+        .getConfiguration('per.storage')
+        .get<boolean>('autoSync', true);
+
+      if (!autoSync) {
+        return;
+      }
+
+      const isConfigured = await storageConfigManager.isConfigured();
+      if (!isConfigured) {
+        return;
+      }
+
+      // Setup storage on newly added servers
+      for (const server of e.added) {
+        const executor = assignmentManager.getExecutor(server.id);
+        if (executor) {
+          log.info(`Auto-setting up storage on server: ${server.id}`);
+          const result = await storageIntegration.setupOnServer(
+            server,
+            executor,
+          );
+
+          if (result.success) {
+            log.info(`Storage setup successful on server: ${server.id}`);
+          } else {
+            const errorMsg = result.error ?? result.message ?? 'Unknown error';
+            log.warn(
+              `Storage setup failed on server ${server.id}: ${errorMsg}`,
+            );
+          }
+        }
+      }
+
+      // Clean up storage status for removed servers
+      for (const { server } of e.removed) {
+        storageIntegration.removeServer(server.id);
+      }
+    })();
+  });
+
+  disposables.push(assignmentListener);
+
+  // Update context keys based on storage status
+  const statusListener = storageIntegration.onDidChangeStatus(() => {
+    void (async () => {
+      const isConfigured = await storageConfigManager.isConfigured();
+      await vs.commands.executeCommand(
+        'setContext',
+        'per.hasStorageConfigured',
+        isConfigured,
+      );
+    })();
+  });
+
+  disposables.push(statusListener);
+
+  // Initialize context key
+  void (async () => {
+    const isConfigured = await storageConfigManager.isConfigured();
+    await vs.commands.executeCommand(
+      'setContext',
+      'per.hasStorageConfigured',
+      isConfigured,
+    );
+  })();
+
+  return disposables;
 }
