@@ -5,7 +5,7 @@
  */
 
 import { assert, expect } from 'chai';
-import { newVsCodeStub, VsCodeStub } from '../../test/helpers/vscode';
+import { newVsCodeStub, VsCodeStub } from '../../../test/helpers/vscode';
 import { buildIconLabel, commandThemeIcon, stripIconLabel } from './utils';
 
 describe('buildIconLabel', () => {

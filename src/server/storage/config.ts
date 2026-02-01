@@ -140,8 +140,7 @@ export class StorageConfigManager {
     const config = await this.get();
     // Check if config exists and has required fields
     return !!(
-      config &&
-      config.rcloneConfigPath &&
+      config?.rcloneConfigPath &&
       config.remoteRootPath &&
       config.rcloneConfigContent
     );

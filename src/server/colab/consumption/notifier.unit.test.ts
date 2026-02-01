@@ -6,8 +6,8 @@
 
 import { assert, expect } from 'chai';
 import sinon, { SinonFakeTimers, SinonStubbedInstance } from 'sinon';
-import { TestEventEmitter } from '../../test/helpers/events';
-import { newVsCodeStub, VsCodeStub } from '../../test/helpers/vscode';
+import { TestEventEmitter } from '../../../test/helpers/events';
+import { newVsCodeStub, VsCodeStub } from '../../../test/helpers/vscode';
 import { CcuInfo, SubscriptionTier } from '../api';
 import { ColabClient } from '../client';
 import { ConsumptionNotifier } from './notifier';

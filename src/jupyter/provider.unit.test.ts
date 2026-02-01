@@ -16,6 +16,7 @@ import { SinonStubbedInstance } from 'sinon';
 import * as sinon from 'sinon';
 import { CancellationToken, CancellationTokenSource } from 'vscode';
 import { AuthChangeEvent } from '../auth/types';
+import { InputFlowAction } from '../common/multi-step-quickpick';
 import { SubscriptionTier, Variant } from '../server/colab/api';
 import { ColabClient } from '../server/colab/client';
 import {
@@ -31,7 +32,6 @@ import {
   COLAB_RUNTIME_PROXY_TOKEN_HEADER,
 } from '../server/colab/headers';
 import { ServerPicker } from '../server/colab/server-picker';
-import { InputFlowAction } from '../common/multi-step-quickpick';
 import { TestEventEmitter } from '../test/helpers/events';
 import { TestUri } from '../test/helpers/uri';
 import {

@@ -1,6 +1,7 @@
 # Project Structure Refactoring
 
 ## Overview
+
 This document describes the major refactoring of the project structure completed on 2026-01-02.
 
 ## Changes Made
@@ -54,6 +55,7 @@ src/
 Commands are now organized by their domain:
 
 **Server Commands** (`src/server/commands/constants.ts`):
+
 - `MOUNT_SERVER`
 - `REMOVE_SERVER`
 - `RENAME_SERVER_ALIAS`
@@ -62,6 +64,7 @@ Commands are now organized by their domain:
 - Shared types: `Command`, `RegisteredCommand`
 
 **Colab Commands** (`src/server/colab/commands/constants.ts`):
+
 - `COLAB_TOOLBAR`
 - `COLAB_SUBMENU`
 - `SIGN_IN_VIEW_EXISTING`
@@ -71,15 +74,18 @@ Commands are now organized by their domain:
 - `UPGRADE_TO_PRO`
 
 **Storage Commands** (`src/server/storage/commands/constants.ts`):
+
 - `CONFIGURE_STORAGE`
 - `SYNC_STORAGE`
 
 **Custom Instance Commands** (`src/server/custom-instance/commands/constants.ts`):
+
 - `CUSTOM_INSTANCE`
 
 ### 3. Import Path Updates
 
 All imports have been updated to reflect the new structure:
+
 - `../colab/` → `../server/colab/`
 - `../cloudstorage/` → `../server/storage/`
 - Adjusted relative paths for files that moved deeper (e.g., `../common/` → `../../common/`)
@@ -94,6 +100,7 @@ All imports have been updated to reflect the new structure:
 ### 5. Future Expansion
 
 The structure is now ready for:
+
 - Custom instance support (placeholder already created)
 - Additional server types
 - Enhanced storage management features

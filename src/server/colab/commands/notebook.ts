@@ -7,15 +7,9 @@
 import vscode, { QuickPickItem } from 'vscode';
 import { InputFlowAction } from '../../../common/multi-step-quickpick';
 import { AssignmentManager } from '../../../jupyter/assignments';
-import {
-  COLAB_SUBMENU,
-  OPEN_COLAB_WEB,
-} from './constants';
+import { MOUNT_SERVER, REMOVE_SERVER } from '../../commands/constants';
 import { CUSTOM_INSTANCE } from '../../custom-instance/commands/constants';
-import {
-  MOUNT_SERVER,
-  REMOVE_SERVER,
-} from '../../commands/constants';
+import { COLAB_SUBMENU, OPEN_COLAB_WEB } from './constants';
 import { openColabWeb } from './external';
 import { commandThemeIcon } from './utils';
 

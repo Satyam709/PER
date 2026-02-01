@@ -341,7 +341,9 @@ echo "rclone installed successfully"
     this.logger.info('Uploading rclone configuration...');
 
     // Decode base64 config
-    const decodedConfig = Buffer.from(configContent, 'base64').toString('utf-8');
+    const decodedConfig = Buffer.from(configContent, 'base64').toString(
+      'utf-8',
+    );
 
     // Escape single quotes in the config content
     const escapedConfig = decodedConfig.replace(/'/g, "'\\''");

@@ -471,14 +471,16 @@ function setupStorageIntegration(
       'per.hasStorageConfigured',
       isConfigured,
     );
-    
+
     // Also check storage enabled setting for initial status bar update
     const storageEnabled = vs.workspace
       .getConfiguration('per.storage')
       .get<boolean>('enabled', false);
-    
+
     if (storageEnabled && !isConfigured) {
-      log.info('Storage is enabled but not configured. Status bar will prompt configuration.');
+      log.info(
+        'Storage is enabled but not configured. Status bar will prompt configuration.',
+      );
     }
   })();
 
@@ -495,7 +497,7 @@ function setupStorageIntegration(
       })();
     }
   });
-  
+
   disposables.push(configListener);
 
   return disposables;

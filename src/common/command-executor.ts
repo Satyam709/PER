@@ -20,7 +20,7 @@ export interface CommandResult {
 
 /**
  * Common interface for executing commands on remote servers.
- * 
+ *
  * Implementations can target different backends such as:
  * - Colab terminal via WebSocket
  * - Custom instance SSH connections

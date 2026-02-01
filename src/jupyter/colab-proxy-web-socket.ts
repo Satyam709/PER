@@ -9,12 +9,12 @@ import vscode, { Disposable, ConfigurationChangeEvent } from 'vscode';
 import WebSocket from 'ws';
 import { z } from 'zod';
 import { handleDriveFsAuth } from '../auth/drive';
+import { log } from '../common/logging';
 import { ColabClient } from '../server/colab/client';
 import {
   COLAB_CLIENT_AGENT_HEADER,
   COLAB_RUNTIME_PROXY_TOKEN_HEADER,
 } from '../server/colab/headers';
-import { log } from '../common/logging';
 import { ColabAssignedServer } from './servers';
 
 /**

@@ -8,9 +8,13 @@ import { assert, expect } from 'chai';
 import sinon from 'sinon';
 import type vscode from 'vscode';
 import { FileStat } from 'vscode';
-import { TestFileSystemError } from '../../test/helpers/errors';
-import { TestUri } from '../../test/helpers/uri';
-import { FileType, newVsCodeStub, VsCodeStub } from '../../test/helpers/vscode';
+import { TestFileSystemError } from '../../../test/helpers/errors';
+import { TestUri } from '../../../test/helpers/uri';
+import {
+  FileType,
+  newVsCodeStub,
+  VsCodeStub,
+} from '../../../test/helpers/vscode';
 import {
   deleteFile,
   download,

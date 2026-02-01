@@ -13,14 +13,14 @@ import vscode, {
   TreeItemCollapsibleState,
   Uri,
 } from 'vscode';
-import { AuthChangeEvent } from '../../auth/types';
+import { AuthChangeEvent } from '../../../auth/types';
 import {
   AssignmentChangeEvent,
   AssignmentManager,
-} from '../../jupyter/assignments';
-import { ContentsFileSystemProvider } from '../../jupyter/contents/file-system';
-import { ColabAssignedServer } from '../../jupyter/servers';
-import { TestEventEmitter } from '../../test/helpers/events';
+} from '../../../jupyter/assignments';
+import { ContentsFileSystemProvider } from '../../../jupyter/contents/file-system';
+import { ColabAssignedServer } from '../../../jupyter/servers';
+import { TestEventEmitter } from '../../../test/helpers/events';
 import { Variant } from '../api';
 import {
   COLAB_CLIENT_AGENT_HEADER,

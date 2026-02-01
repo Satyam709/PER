@@ -8,24 +8,27 @@
 export type { Command, RegisteredCommand } from '../../commands/constants';
 
 /** Command to open the toolbar command selection. */
-export const COLAB_TOOLBAR: import('../../commands/constants').RegisteredCommand = {
-  id: 'per.toolbarCommand',
-  label: 'PER',
-};
+export const COLAB_TOOLBAR: import('../../commands/constants').RegisteredCommand =
+  {
+    id: 'per.toolbarCommand',
+    label: 'PER',
+  };
 
 /** Command to open the Colab submenu. */
-export const COLAB_SUBMENU: import('../../commands/constants').RegisteredCommand = {
-  id: 'per.colabSubmenu',
-  label: 'Colab',
-  icon: 'symbol-event',
-};
+export const COLAB_SUBMENU: import('../../commands/constants').RegisteredCommand =
+  {
+    id: 'per.colabSubmenu',
+    label: 'Colab',
+    icon: 'symbol-event',
+  };
 
 /** Command to trigger the sign-in flow, to view existing Colab servers. */
-export const SIGN_IN_VIEW_EXISTING: import('../../commands/constants').Command = {
-  label: 'View Existing Servers',
-  icon: 'sign-in',
-  description: 'Click to sign-in...',
-};
+export const SIGN_IN_VIEW_EXISTING: import('../../commands/constants').Command =
+  {
+    label: 'View Existing Servers',
+    icon: 'sign-in',
+    description: 'Click to sign-in...',
+  };
 
 /** Command to auto-connect a Colab server. */
 export const AUTO_CONNECT: import('../../commands/constants').Command = {

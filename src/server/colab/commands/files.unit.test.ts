@@ -7,10 +7,10 @@
 import { randomUUID } from 'crypto';
 import sinon, { SinonStubbedInstance } from 'sinon';
 import { QuickPickItem } from 'vscode';
-import { AssignmentManager } from '../../jupyter/assignments';
-import { TestCancellationTokenSource } from '../../test/helpers/cancellation';
-import { TestUri } from '../../test/helpers/uri';
-import { newVsCodeStub, VsCodeStub } from '../../test/helpers/vscode';
+import { AssignmentManager } from '../../../jupyter/assignments';
+import { TestCancellationTokenSource } from '../../../test/helpers/cancellation';
+import { TestUri } from '../../../test/helpers/uri';
+import { newVsCodeStub, VsCodeStub } from '../../../test/helpers/vscode';
 import { Variant } from '../api';
 import { upload } from './files';
 

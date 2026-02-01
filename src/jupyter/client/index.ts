@@ -6,11 +6,11 @@
 
 import { JupyterServerConnectionInformation } from '@vscode/jupyter-extension';
 import { Uri, Event, Disposable } from 'vscode';
+import { Logger, logWithComponent } from '../../common/logging';
 import {
   COLAB_CLIENT_AGENT_HEADER,
   COLAB_RUNTIME_PROXY_TOKEN_HEADER,
 } from '../../server/colab/headers';
-import { Logger, logWithComponent } from '../../common/logging';
 import { AssignmentChangeEvent } from '../assignments';
 import { ColabAssignedServer } from '../servers';
 

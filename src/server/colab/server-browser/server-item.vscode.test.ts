@@ -6,7 +6,7 @@
 
 import { expect } from 'chai';
 import { TreeItemCollapsibleState, Uri } from 'vscode';
-import { FileType } from '../../test/helpers/vscode';
+import { FileType } from '../../../test/helpers/vscode';
 import { ServerItem } from './server-item';
 
 describe('ServerItem', () => {

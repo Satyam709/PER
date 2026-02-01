@@ -7,15 +7,11 @@
 import { expect } from 'chai';
 import sinon, { SinonStubbedInstance } from 'sinon';
 import { QuickPickItem, Uri, WorkspaceConfiguration } from 'vscode';
-import { InputFlowAction } from '../../common/multi-step-quickpick';
-import { AssignmentManager } from '../../jupyter/assignments';
-import { newVsCodeStub, VsCodeStub } from '../../test/helpers/vscode';
-import {
-  OPEN_COLAB_WEB,
-  UPGRADE_TO_PRO,
-  REMOVE_SERVER,
-  MOUNT_SERVER,
-} from './constants';
+import { InputFlowAction } from '../../../common/multi-step-quickpick';
+import { AssignmentManager } from '../../../jupyter/assignments';
+import { newVsCodeStub, VsCodeStub } from '../../../test/helpers/vscode';
+import { REMOVE_SERVER, MOUNT_SERVER } from '../../commands/constants';
+import { OPEN_COLAB_WEB, UPGRADE_TO_PRO } from '../commands/constants';
 import { notebookToolbar } from './notebook';
 
 describe('notebookToolbar', () => {

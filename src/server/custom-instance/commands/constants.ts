@@ -8,8 +8,9 @@
 export type { Command, RegisteredCommand } from '../../commands/constants';
 
 /** Command to open custom instance options. */
-export const CUSTOM_INSTANCE: import('../../commands/constants').RegisteredCommand = {
-  id: 'per.customInstance',
-  label: 'Custom Instance',
-  icon: 'server',
-};
+export const CUSTOM_INSTANCE: import('../../commands/constants').RegisteredCommand =
+  {
+    id: 'per.customInstance',
+    label: 'Custom Instance',
+    icon: 'server',
+  };

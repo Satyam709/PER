@@ -24,11 +24,11 @@ import {
   NotFoundError,
   TooManyAssignmentsError,
 } from '../server/colab/client';
-import { REMOVE_SERVER } from '../server/colab/commands/constants';
 import {
   COLAB_CLIENT_AGENT_HEADER,
   COLAB_RUNTIME_PROXY_TOKEN_HEADER,
 } from '../server/colab/headers';
+import { REMOVE_SERVER } from '../server/commands/constants';
 import { TestEventEmitter } from '../test/helpers/events';
 import {
   createJupyterClientStub,

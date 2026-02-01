@@ -10,8 +10,9 @@ import { AssignmentManager } from '../../../jupyter/assignments';
 import { ContentsFileSystemProvider } from '../../../jupyter/contents/file-system';
 import { ColabAssignedServer, UnownedServer } from '../../../jupyter/servers';
 import { ServerStorage } from '../../../jupyter/storage';
+import { RENAME_SERVER_ALIAS } from '../../commands/constants';
+import { MOUNT_SERVER, REMOVE_SERVER } from '../../commands/constants';
 import { PROMPT_SERVER_ALIAS, validateServerAlias } from '../server-picker';
-import { MOUNT_SERVER, REMOVE_SERVER, RENAME_SERVER_ALIAS } from '../../commands/constants';
 
 /**
  * Prompt the user to select and rename the local alias used to identify an

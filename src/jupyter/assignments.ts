@@ -94,23 +94,26 @@ export class AssignmentManager implements vscode.Disposable {
     this.assignmentChange = new vs.EventEmitter<AssignmentChangeEvent>();
     this.disposables.push(this.assignmentChange);
     this.onDidAssignmentsChange = this.assignmentChange.event;
-    
+
     // Handle executor lifecycle based on server assignments
     this.onDidAssignmentsChange((e) => {
       // Remove executors for removed servers
       for (const { server } of e.removed) {
         this.executorManager.removeExecutor(server.id);
       }
-      
+
       // Create executors for newly added servers
       for (const server of e.added) {
         try {
           this.executorManager.getOrCreateExecutor(server);
         } catch (error) {
-          log.error(`Failed to create executor for server ${server.id}:`, error);
+          log.error(
+            `Failed to create executor for server ${server.id}:`,
+            error,
+          );
         }
       }
-      
+
       void this.notifyReloadNotebooks(e);
     });
   }
@@ -488,14 +491,14 @@ export class AssignmentManager implements vscode.Disposable {
    */
   async initializeExecutors(signal?: AbortSignal): Promise<void> {
     log.info('Initializing executors for existing servers');
-    
+
     try {
       const servers = await this.getServers('extension', signal);
       log.debug(`Found ${String(servers.length)} existing servers`);
-      
+
       let successCount = 0;
       let failureCount = 0;
-      
+
       for (const server of servers) {
         try {
           this.executorManager.getOrCreateExecutor(server);
@@ -503,10 +506,13 @@ export class AssignmentManager implements vscode.Disposable {
           log.debug(`Executor initialized for server: ${server.id}`);
         } catch (error) {
           failureCount++;
-          log.error(`Failed to initialize executor for server ${server.id}:`, error);
+          log.error(
+            `Failed to initialize executor for server ${server.id}:`,
+            error,
+          );
         }
       }
-      
+
       log.info(
         `Executor initialization complete: ${String(successCount)} succeeded, ${String(failureCount)} failed`,
       );
@@ -518,7 +524,7 @@ export class AssignmentManager implements vscode.Disposable {
 
   /**
    * Gets the command executor for a given server.
-   * 
+   *
    * @param serverId - The ID of the server
    * @returns The command executor if it exists, undefined otherwise
    */
@@ -627,7 +633,7 @@ export class AssignmentManager implements vscode.Disposable {
       },
     };
     log.info('server assigned ', result);
-    
+
     // Executor will be created by the assignment change event handler
     return result;
   }

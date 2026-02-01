@@ -11,7 +11,7 @@ import {
   SinonStubbedInstance,
   createStubInstance,
 } from 'sinon';
-import { newVsCodeStub, VsCodeStub } from '../../test/helpers/vscode';
+import { newVsCodeStub, VsCodeStub } from '../../../test/helpers/vscode';
 import { CcuInfo } from '../api';
 import { ColabClient } from '../client';
 import { ConsumptionPoller } from './poller';
