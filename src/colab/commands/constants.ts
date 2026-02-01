@@ -26,6 +26,20 @@ export const COLAB_TOOLBAR: RegisteredCommand = {
   label: 'PER',
 };
 
+/** Command to open the Colab submenu. */
+export const COLAB_SUBMENU: RegisteredCommand = {
+  id: 'per.colabSubmenu',
+  label: 'Colab',
+  icon: 'symbol-event',
+};
+
+/** Command to open custom instance options. */
+export const CUSTOM_INSTANCE: RegisteredCommand = {
+  id: 'per.customInstance',
+  label: 'Custom Instance',
+  icon: 'server',
+};
+
 /** Command to sign out. */
 export const SIGN_OUT: RegisteredCommand = {
   id: 'per.signOut',

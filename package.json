@@ -168,6 +168,16 @@
         "icon": "$(per-logo)"
       },
       {
+        "command": "per.colabSubmenu",
+        "category": "PER",
+        "title": "Colab"
+      },
+      {
+        "command": "per.customInstance",
+        "category": "PER",
+        "title": "Custom Instance"
+      },
+      {
         "command": "per.newFile",
         "title": "New File..."
       },

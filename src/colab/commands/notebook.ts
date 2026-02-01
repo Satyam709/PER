@@ -8,27 +8,27 @@ import vscode, { QuickPickItem } from 'vscode';
 import { InputFlowAction } from '../../common/multi-step-quickpick';
 import { AssignmentManager } from '../../jupyter/assignments';
 import {
+  COLAB_SUBMENU,
+  CUSTOM_INSTANCE,
   MOUNT_SERVER,
   OPEN_COLAB_WEB,
   REMOVE_SERVER,
-  UPGRADE_TO_PRO,
 } from './constants';
-import { openColabSignup, openColabWeb } from './external';
+import { openColabWeb } from './external';
 import { commandThemeIcon } from './utils';
 
 /**
- * Prompt the user to select a Colab command to run.
+ * Prompt the user to select a PER command to run.
  *
- * The server-specific commands are only shown if there is at least one
- * assigned Colab server.
+ * Shows the main menu with Colab and Custom Instance options.
  */
 export async function notebookToolbar(
   vs: typeof vscode,
   assignments: AssignmentManager,
 ): Promise<void> {
-  const commands = await getAvailableCommands(vs, assignments);
+  const commands = getMainMenuCommands(vs, assignments);
   const command = await vs.window.showQuickPick<NotebookCommand>(commands, {
-    title: 'Colab',
+    title: 'PER',
   });
   if (!command) {
     return;
@@ -46,15 +46,84 @@ export async function notebookToolbar(
   }
 }
 
+/**
+ * Show the Colab submenu with available Colab options.
+ */
+export async function colabSubmenu(
+  vs: typeof vscode,
+  assignments: AssignmentManager,
+): Promise<void> {
+  const commands = await getColabSubmenuCommands(vs, assignments);
+  const command = await vs.window.showQuickPick<NotebookCommand>(commands, {
+    title: 'PER > Colab',
+  });
+  if (!command) {
+    return;
+  }
+
+  try {
+    await command.invoke();
+  } catch (err: unknown) {
+    // The back button was pressed, go back to main menu.
+    if (err === InputFlowAction.back) {
+      await notebookToolbar(vs, assignments);
+      return;
+    }
+    throw err;
+  }
+}
+
+/**
+ * Show the Custom Instance submenu.
+ */
+export async function customInstanceSubmenu(
+  vs: typeof vscode,
+  _assignments: AssignmentManager,
+): Promise<void> {
+  await vs.window.showInformationMessage(
+    'Custom Instance feature is coming soon!',
+  );
+}
+
 interface NotebookCommand extends QuickPickItem {
   invoke: () => Thenable<void> | void;
 }
 
-async function getAvailableCommands(
+/**
+ * Get the main menu commands for PER.
+ */
+function getMainMenuCommands(
+  vs: typeof vscode,
+  assignments: AssignmentManager,
+): NotebookCommand[] {
+  return [
+    {
+      label: COLAB_SUBMENU.label,
+      iconPath: commandThemeIcon(vs, COLAB_SUBMENU),
+      description: 'Access Colab server options',
+      invoke: () => {
+        return colabSubmenu(vs, assignments);
+      },
+    },
+    {
+      label: CUSTOM_INSTANCE.label,
+      iconPath: commandThemeIcon(vs, CUSTOM_INSTANCE),
+      description: 'Connect to custom Jupyter instance',
+      invoke: () => {
+        return customInstanceSubmenu(vs, assignments);
+      },
+    },
+  ];
+}
+
+/**
+ * Get the Colab submenu commands.
+ */
+async function getColabSubmenuCommands(
   vs: typeof vscode,
   assignments: AssignmentManager,
 ): Promise<NotebookCommand[]> {
-  const externalCommands: NotebookCommand[] = [
+  const colabCommands: NotebookCommand[] = [
     {
       label: OPEN_COLAB_WEB.label,
       iconPath: commandThemeIcon(vs, OPEN_COLAB_WEB),
@@ -62,20 +131,15 @@ async function getAvailableCommands(
         openColabWeb(vs);
       },
     },
-    {
-      label: UPGRADE_TO_PRO.label,
-      iconPath: commandThemeIcon(vs, UPGRADE_TO_PRO),
-      invoke: () => {
-        openColabSignup(vs);
-      },
-    },
   ];
+
   if (!(await assignments.hasAssignedServer())) {
-    return externalCommands;
+    return colabCommands;
   }
+
   const serverCommands: NotebookCommand[] = [];
   const includeMountServer = vs.workspace
-    .getConfiguration('colab')
+    .getConfiguration('per')
     .get<boolean>('serverMounting', false);
   if (includeMountServer) {
     serverCommands.push({
@@ -113,5 +177,5 @@ async function getAvailableCommands(
     },
   };
 
-  return [...serverCommands, separator, ...externalCommands];
+  return [...serverCommands, separator, ...colabCommands];
 }

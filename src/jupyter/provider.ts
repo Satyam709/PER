@@ -15,17 +15,17 @@ import {
 import { CancellationToken, Disposable, Event, ProviderResult } from 'vscode';
 import vscode from 'vscode';
 import { AuthChangeEvent } from '../auth/types';
-import { SubscriptionTier } from '../colab/api';
 import { ColabClient } from '../colab/client';
 import {
   AUTO_CONNECT,
+  COLAB_SUBMENU,
   Command,
+  CUSTOM_INSTANCE,
   NEW_SERVER,
   OPEN_COLAB_WEB,
   SIGN_IN_VIEW_EXISTING,
-  UPGRADE_TO_PRO,
 } from '../colab/commands/constants';
-import { openColabSignup, openColabWeb } from '../colab/commands/external';
+import { openColabWeb } from '../colab/commands/external';
 import { buildIconLabel, stripIconLabel } from '../colab/commands/utils';
 import { ServerPicker } from '../colab/server-picker';
 import { LatestCancelable } from '../common/async';
@@ -138,18 +138,8 @@ export class ColabJupyterServerProvider
     ) {
       commands.push(SIGN_IN_VIEW_EXISTING);
     }
-    commands.push(AUTO_CONNECT, NEW_SERVER, OPEN_COLAB_WEB);
-    if (this.isAuthorized) {
-      try {
-        const tier = await this.client.getSubscriptionTier();
-        if (tier === SubscriptionTier.NONE) {
-          commands.push(UPGRADE_TO_PRO);
-        }
-      } catch (_) {
-        // Including the command to upgrade to pro is non-critical. If it fails,
-        // just return the commands without it.
-      }
-    }
+    // Show the new menu structure with Colab and Custom Instance
+    commands.push(COLAB_SUBMENU, CUSTOM_INSTANCE);
     return commands.map((c) => ({
       label: buildIconLabel(c),
       description: c.description,
@@ -178,15 +168,14 @@ export class ColabJupyterServerProvider
           // sign-in and navigate back.
           await this.assignmentManager.reconcileAssignedServers();
           throw InputFlowAction.back;
-        case AUTO_CONNECT.label:
-          return await this.assignmentManager.latestOrAutoAssignServer();
-        case NEW_SERVER.label:
-          return await this.assignServer();
-        case OPEN_COLAB_WEB.label:
-          openColabWeb(this.vs);
-          return;
-        case UPGRADE_TO_PRO.label:
-          openColabSignup(this.vs);
+        case COLAB_SUBMENU.label:
+          return await this.showColabSubmenu();
+        case CUSTOM_INSTANCE.label:
+          // Close the quick pick first, then show the message
+          await this.vs.commands.executeCommand('workbench.action.closeQuickOpen');
+          await this.vs.window.showInformationMessage(
+            'Custom Instance feature is coming soon!',
+          );
           return;
         default:
           throw new Error('Unexpected command');
@@ -206,6 +195,45 @@ export class ColabJupyterServerProvider
       // commands, the quick pick is left spinning in the "busy" state.
       await this.vs.commands.executeCommand('workbench.action.closeQuickOpen');
       throw e;
+    }
+  }
+
+  /**
+   * Show the Colab submenu with available Colab options.
+   */
+  private async showColabSubmenu(): Promise<JupyterServer | undefined> {
+    const colabCommands: Command[] = [
+      AUTO_CONNECT,
+      NEW_SERVER,
+      OPEN_COLAB_WEB,
+    ];
+
+    const items = colabCommands.map((c) => ({
+      label: buildIconLabel(c),
+      description: c.description,
+      command: c,
+    }));
+
+    const selected = await this.vs.window.showQuickPick(items, {
+      title: 'PER > Colab',
+      placeHolder: 'Select a Colab option',
+    });
+
+    if (!selected) {
+      throw InputFlowAction.back;
+    }
+
+    // Handle the selected command
+    switch (selected.command.label) {
+      case AUTO_CONNECT.label:
+        return await this.assignmentManager.latestOrAutoAssignServer();
+      case NEW_SERVER.label:
+        return await this.assignServer();
+      case OPEN_COLAB_WEB.label:
+        openColabWeb(this.vs);
+        return;
+      default:
+        throw new Error('Unexpected command');
     }
   }
 

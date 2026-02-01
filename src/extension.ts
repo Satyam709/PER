@@ -12,6 +12,8 @@ import { StorageConfigManager } from './cloudstorage/config';
 import { ColabClient } from './colab/client';
 import {
   COLAB_TOOLBAR,
+  COLAB_SUBMENU,
+  CUSTOM_INSTANCE,
   UPLOAD,
   MOUNT_SERVER,
   REMOVE_SERVER,
@@ -20,7 +22,11 @@ import {
   SYNC_STORAGE,
 } from './colab/commands/constants';
 import { upload } from './colab/commands/files';
-import { notebookToolbar } from './colab/commands/notebook';
+import {
+  notebookToolbar,
+  colabSubmenu,
+  customInstanceSubmenu,
+} from './colab/commands/notebook';
 import { mountServer, removeServer } from './colab/commands/server';
 import { configureStorage, syncStorage } from './colab/commands/storage';
 import { ConnectionRefreshController } from './colab/connection-refresher';
@@ -279,6 +285,12 @@ function registerCommands(
     }),
     vscode.commands.registerCommand(COLAB_TOOLBAR.id, async () => {
       await notebookToolbar(vscode, assignmentManager);
+    }),
+    vscode.commands.registerCommand(COLAB_SUBMENU.id, async () => {
+      await colabSubmenu(vscode, assignmentManager);
+    }),
+    vscode.commands.registerCommand(CUSTOM_INSTANCE.id, async () => {
+      await customInstanceSubmenu(vscode, assignmentManager);
     }),
     vscode.commands.registerCommand(
       'per.newFile',
