@@ -50,9 +50,7 @@ import {
   REMOVE_SERVER,
   SIGN_OUT,
 } from './server/commands/constants';
-import {
-  CUSTOM_INSTANCE,
-} from './server/custom-instance/commands/constants';
+import { CUSTOM_INSTANCE } from './server/custom-instance/commands/constants';
 import {
   CONFIGURE_STORAGE,
   SYNC_STORAGE,
@@ -159,7 +157,7 @@ export async function activate(context: vscode.ExtensionContext) {
     assignmentManager,
   );
   const consumptionMonitor = watchConsumption(colabClient);
-  
+
   // Create storage status bar
   const storageStatusBar = new StorageStatusBar(
     vscode,
@@ -329,11 +327,7 @@ function registerCommands(
       await syncStorage(vscode, assignmentManager, storageIntegration);
     }),
     vscode.commands.registerCommand('per.storage.validateSetup', async () => {
-      await validateStorageSetup(
-        vscode,
-        assignmentManager,
-        storageIntegration,
-      );
+      await validateStorageSetup(vscode, assignmentManager, storageIntegration);
     }),
     vscode.commands.registerCommand(COLAB_TOOLBAR.id, async () => {
       await notebookToolbar(vscode, assignmentManager);
@@ -391,6 +385,15 @@ function setupStorageIntegration(
   // Auto-setup storage when servers are added (if enabled)
   const assignmentListener = assignmentManager.onDidAssignmentsChange((e) => {
     void (async () => {
+      // Check if storage is enabled
+      const storageEnabled = vs.workspace
+        .getConfiguration('per.storage')
+        .get<boolean>('enabled', false);
+
+      if (!storageEnabled) {
+        return;
+      }
+
       // Check if auto-sync is enabled
       const autoSync = vs.workspace
         .getConfiguration('per.storage')
@@ -407,6 +410,9 @@ function setupStorageIntegration(
 
       // Setup storage on newly added servers
       for (const server of e.added) {
+        // Wait a bit for executor to be ready
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
         const executor = assignmentManager.getExecutor(server.id);
         if (executor) {
           log.info(`Auto-setting up storage on server: ${server.id}`);
@@ -417,12 +423,20 @@ function setupStorageIntegration(
 
           if (result.success) {
             log.info(`Storage setup successful on server: ${server.id}`);
+            await vs.window.showInformationMessage(
+              `Storage setup complete on server ${server.id}`,
+            );
           } else {
             const errorMsg = result.error ?? result.message ?? 'Unknown error';
             log.warn(
               `Storage setup failed on server ${server.id}: ${errorMsg}`,
             );
+            await vs.window.showWarningMessage(
+              `Storage setup failed: ${errorMsg}`,
+            );
           }
+        } else {
+          log.warn(`Executor not available for server: ${server.id}`);
         }
       }
 
@@ -449,7 +463,7 @@ function setupStorageIntegration(
 
   disposables.push(statusListener);
 
-  // Initialize context key
+  // Initialize context key and status bar
   void (async () => {
     const isConfigured = await storageConfigManager.isConfigured();
     await vs.commands.executeCommand(
@@ -457,7 +471,32 @@ function setupStorageIntegration(
       'per.hasStorageConfigured',
       isConfigured,
     );
+    
+    // Also check storage enabled setting for initial status bar update
+    const storageEnabled = vs.workspace
+      .getConfiguration('per.storage')
+      .get<boolean>('enabled', false);
+    
+    if (storageEnabled && !isConfigured) {
+      log.info('Storage is enabled but not configured. Status bar will prompt configuration.');
+    }
   })();
+
+  // Listen to configuration changes
+  const configListener = vs.workspace.onDidChangeConfiguration((e) => {
+    if (e.affectsConfiguration('per.storage')) {
+      void (async () => {
+        const isConfigured = await storageConfigManager.isConfigured();
+        await vs.commands.executeCommand(
+          'setContext',
+          'per.hasStorageConfigured',
+          isConfigured,
+        );
+      })();
+    }
+  });
+  
+  disposables.push(configListener);
 
   return disposables;
 }

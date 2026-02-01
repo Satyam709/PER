@@ -24,9 +24,31 @@ export async function configureStorage(
   const configured = await picker.prompt();
 
   if (configured) {
-    await vs.window.showInformationMessage(
-      'Storage configured. Connect to a server to set up synchronization.',
-    );
+    // Check if storage is enabled
+    const storageEnabled = vs.workspace
+      .getConfiguration('per.storage')
+      .get<boolean>('enabled', false);
+
+    if (!storageEnabled) {
+      const enable = 'Enable Storage';
+      const choice = await vs.window.showInformationMessage(
+        'Storage configured successfully! Enable storage to automatically sync when connecting to servers.',
+        enable,
+        'Later',
+      );
+      if (choice === enable) {
+        await vs.workspace
+          .getConfiguration('per.storage')
+          .update('enabled', true, true);
+        await vs.window.showInformationMessage(
+          'Storage enabled. Connect to a server to start synchronization.',
+        );
+      }
+    } else {
+      await vs.window.showInformationMessage(
+        'Storage configured. Connect to a server to set up synchronization.',
+      );
+    }
   }
 }
 

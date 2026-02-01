@@ -162,11 +162,7 @@ export class StorageConfigPicker {
         },
       });
 
-      state.configPath = defaultPath;
-
-      if (path) {
-        state.configPath = path;
-      }
+      state.configPath = path || defaultPath;
     }
 
     // Validate the config after getting the path
@@ -260,10 +256,7 @@ export class StorageConfigPicker {
       },
     });
 
-    state.remoteRootPath = suggestedPath;
-    if (path) {
-      state.remoteRootPath = suggestedPath;
-    }
+    state.remoteRootPath = path || suggestedPath;
 
     return undefined; // End of flow
   }

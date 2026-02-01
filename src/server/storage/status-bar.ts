@@ -1,4 +1,4 @@
-/**
+ /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
@@ -61,10 +61,24 @@ export class StorageStatusBar implements vscode.Disposable {
    * Update the status bar item based on current state.
    */
   private async updateStatusBar(): Promise<void> {
+    const storageEnabled = this.vs.workspace
+      .getConfiguration('per.storage')
+      .get<boolean>('enabled', false);
+
+    if (!storageEnabled) {
+      this.statusBarItem.hide();
+      return;
+    }
+
     const isConfigured = await this.storageConfigManager.isConfigured();
 
     if (!isConfigured) {
-      this.statusBarItem.hide();
+      this.statusBarItem.text = '$(cloud-upload) Storage: Not Configured';
+      this.statusBarItem.tooltip = 'Click to configure storage';
+      this.statusBarItem.backgroundColor = new this.vs.ThemeColor(
+        'statusBarItem.warningBackground',
+      );
+      this.statusBarItem.show();
       return;
     }
 

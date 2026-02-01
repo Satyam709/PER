@@ -63,12 +63,26 @@ export class TerminalExecutor implements CommandExecutor {
    * @param args - Additional command arguments
    * @returns Promise resolving to command execution result
    */
-  execute(cmd: string, ...args: string[]): Promise<CommandResult> {
+  async execute(cmd: string, ...args: string[]): Promise<CommandResult> {
+    // Wait for WebSocket to be ready
+    await this.waitForConnection();
+
     return new Promise<CommandResult>((resolve, reject) => {
       if (!this.terminalWs) {
         reject(new Error('Terminal WebSocket not initialized'));
         return;
       }
+
+      // Check WebSocket readyState
+      if (this.terminalWs.readyState !== 1) {
+        reject(
+          new Error(
+            `Terminal WebSocket not ready (state: ${String(this.terminalWs.readyState)})`,
+          ),
+        );
+        return;
+      }
+
       this.terminalWs.send(this.buildCommand(cmd, args));
 
       // Can do better to parse the stream
@@ -80,6 +94,31 @@ export class TerminalExecutor implements CommandExecutor {
         });
       }, 2000);
     });
+  }
+
+  /**
+   * Waits for the WebSocket connection to be ready.
+   * @param timeout - Maximum time to wait in milliseconds
+   */
+  private async waitForConnection(timeout = 15000): Promise<void> {
+    const startTime = Date.now();
+
+    while (!this.terminalWs || this.terminalWs.readyState !== 1) {
+      if (Date.now() - startTime > timeout) {
+        throw new Error('Terminal WebSocket connection timeout');
+      }
+
+      if (this.terminalWs?.readyState === 3) {
+        // Connection closed, try to reconnect
+        this.logger.warn('WebSocket closed, attempting to reconnect...');
+        this.setupTerminalWs();
+        // Continue waiting for the new connection
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    this.logger.debug('WebSocket connection ready');
   }
 
   /**

@@ -58,7 +58,7 @@ export class StorageConfigManager {
     }
 
     try {
-      return StorageConfigSchema.parse(configJson);
+      return StorageConfigSchema.parse(JSON.parse(configJson));
     } catch (error) {
       console.error('Failed to parse storage configuration:', error);
       return undefined;
@@ -138,7 +138,13 @@ export class StorageConfigManager {
    */
   async isConfigured(): Promise<boolean> {
     const config = await this.get();
-    return config?.enabled ? true : false;
+    // Check if config exists and has required fields
+    return !!(
+      config &&
+      config.rcloneConfigPath &&
+      config.remoteRootPath &&
+      config.rcloneConfigContent
+    );
   }
 
   /**
