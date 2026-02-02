@@ -42,6 +42,26 @@ export interface CommandExecutor {
   readonly serverId: string;
 
   /**
+   * Whether the executor is currently connected.
+   * Returns true if the underlying connection (e.g., WebSocket) is open.
+   */
+  readonly isConnected: boolean;
+
+  /**
+   * Establishes the connection to the remote server.
+   * Can be called to reconnect after a disconnect.
+   *
+   * @returns Promise that resolves when the connection is established
+   */
+  connect(): Promise<void>;
+
+  /**
+   * Closes the connection to the remote server.
+   * The connection can be re-established by calling connect().
+   */
+  disconnect(): void;
+
+  /**
    * Executes the given command with optional arguments.
    *
    * @param cmd - Command to execute

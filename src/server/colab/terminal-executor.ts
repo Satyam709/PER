@@ -44,6 +44,13 @@ export class ColabTerminalExecutor implements CommandExecutor {
     return this.server.id;
   }
 
+  /**
+   * Whether the WebSocket connection is currently open.
+   */
+  get isConnected(): boolean {
+    return this.terminalWs?.readyState === 1; // WebSocket.OPEN = 1
+  }
+
   constructor(private readonly server: JupyterServer) {
     if (!server.connectionInformation) {
       throw new Error('TerminalExecutor: Connection info not found');
@@ -51,7 +58,8 @@ export class ColabTerminalExecutor implements CommandExecutor {
     this.connectionInfo = server.connectionInformation;
     this.logger = logWithComponent('TerminalExecutor');
     this.setupRestClient();
-    this.setupTerminalWs();
+    // Auto-connect on construction
+    void this.connect();
 
     this.logger.debug('created TerminalExecutor', {
       serverInfo: JSON.stringify(this.connectionInfo),
@@ -104,7 +112,7 @@ export class ColabTerminalExecutor implements CommandExecutor {
   private async waitForConnection(timeout = 15000): Promise<void> {
     const startTime = Date.now();
 
-    while (!this.terminalWs || this.terminalWs.readyState !== 1) {
+    while (!this.isConnected) {
       if (Date.now() - startTime > timeout) {
         throw new Error('Terminal WebSocket connection timeout');
       }
@@ -112,7 +120,7 @@ export class ColabTerminalExecutor implements CommandExecutor {
       if (this.terminalWs?.readyState === 3) {
         // Connection closed, try to reconnect
         this.logger.warn('WebSocket closed, attempting to reconnect...');
-        this.setupTerminalWs();
+        void this.connect();
         // Continue waiting for the new connection
       }
 
@@ -135,9 +143,10 @@ export class ColabTerminalExecutor implements CommandExecutor {
   }
 
   /**
-   * Closes the terminal WebSocket connection.
+   * Closes the WebSocket connection.
+   * The connection can be re-established by calling connect().
    */
-  closeTerminal() {
+  disconnect(): void {
     if (this.terminalWs) {
       try {
         this.terminalWs.close();
@@ -165,18 +174,39 @@ export class ColabTerminalExecutor implements CommandExecutor {
 
   /**
    * Establishes WebSocket connection to the Jupyter terminal endpoint.
-   * Sets up message, error, and close handlers.
+   * Can be called to reconnect after a disconnect.
+   *
+   * @returns Promise that resolves when the connection is established
    */
-  setupTerminalWs() {
+  async connect(): Promise<void> {
+    if (this.isConnected) {
+      this.logger.debug('Already connected, skipping connect()');
+      return;
+    }
+
     const concWs = this.connectionInfo.WebSocket as typeof WebSocket;
     const wsBaseUrl = convertProtocol(this.connectionInfo.baseUrl.toString());
     this.logger.info(
       `Setting up terminal websocket with url: ${wsBaseUrl}${this.TERM_ENDPOINT}`,
     );
     const terminalSocket = new concWs(`${wsBaseUrl}${this.TERM_ENDPOINT}`);
+
+    // Wait for connection to open
+    await new Promise<void>((resolve, reject) => {
+      terminalSocket.onopen = () => {
+        this.logger.info('Terminal WebSocket connection opened');
+        resolve();
+      };
+
+      terminalSocket.onerror = (event: ErrorEvent) => {
+        this.logger.error('Terminal WebSocket error:', event.message);
+        reject(new Error(`WebSocket connection failed: ${event.message}`));
+      };
+    });
+
     /**
      * Handle the response which is of form
-     * "\{"data":"..."\}"
+     * "\{"data":"..."}"
      */
     const responseHandler = (event: MessageEvent) => {
       if (typeof event.data !== 'string') {
@@ -194,17 +224,13 @@ export class ColabTerminalExecutor implements CommandExecutor {
       }
     };
 
-    const errHandler = (event: ErrorEvent) => {
-      this.logger.error('Terminal WebSocket error:', event.message);
-    };
-
     const closeHandler = () => {
       this.logger.info('Terminal WebSocket connection closed');
       this.terminalWs = null;
     };
+
     terminalSocket.onclose = closeHandler;
     terminalSocket.onmessage = responseHandler;
-    terminalSocket.onerror = errHandler;
 
     this.terminalWs = terminalSocket;
   }
@@ -214,6 +240,6 @@ export class ColabTerminalExecutor implements CommandExecutor {
    */
   dispose(): void {
     // Close terminal if still open
-    this.closeTerminal();
+    this.disconnect();
   }
 }

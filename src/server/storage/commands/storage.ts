@@ -76,7 +76,10 @@ export async function setupStorageOnServer(
     },
     async (progress) => {
       progress.report({ message: 'Getting terminal connection...' });
-      const executor = await server.terminal.getTerminal();
+      if (!server.terminal) {
+        throw new Error('No terminal provider available for this server');
+      }
+      const executor = server.terminal.getTerminal();
 
       progress.report({ message: 'Installing rclone...' });
       const result = await storageIntegration.setupOnServer(executor);
@@ -130,7 +133,10 @@ export async function syncStorage(
       cancellable: false,
     },
     async () => {
-      const executor = await server.terminal.getTerminal();
+      if (!server.terminal) {
+        throw new Error('No terminal provider available for this server');
+      }
+      const executor = server.terminal.getTerminal();
       const result = await storageIntegration.syncNow(executor);
 
       if (result.success) {
@@ -162,7 +168,13 @@ export async function validateStorageSetup(
     return;
   }
 
-  const executor = await server.terminal.getTerminal();
+  if (!server.terminal) {
+    await vs.window.showWarningMessage(
+      'No terminal provider available for this server.',
+    );
+    return;
+  }
+  const executor = server.terminal.getTerminal();
   const result = await storageIntegration.validateSetup(executor);
 
   if (result.success) {

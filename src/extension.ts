@@ -417,7 +417,11 @@ function setupStorageIntegration(
       for (const server of e.added) {
         log.info(`Auto-setting up storage on server: ${server.id}`);
         try {
-          const executor = await server.terminal.getTerminal();
+          if (!server.terminal) {
+            log.warn(`No terminal provider for server: ${server.id}`);
+            continue;
+          }
+          const executor = server.terminal.getTerminal();
           const result = await storageIntegration.setupOnServer(executor);
 
           if (result.success) {
