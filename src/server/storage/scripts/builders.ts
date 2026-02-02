@@ -160,8 +160,9 @@ echo "Rclone config uploaded successfully to ${configPath}"
 
 /**
  * Builder for sync operation script.
- *
- * Generates a bash script for syncing files between remote and local.
+ * 
+ * Generates a bash script for syncing files between remote and local using
+ * rclone bisync for true bidirectional synchronization.
  */
 export class SyncScriptBuilder {
   private options: Required<SyncOptions>;
@@ -202,10 +203,9 @@ export class SyncScriptBuilder {
     const { remotePath, localPath } = this.options;
     const flags = this.buildFlags();
 
-    const [source, destination] =
-      direction === 'remote-to-local'
-        ? [remotePath, localPath]
-        : [localPath, remotePath];
+    const [source, destination] = direction === 'remote-to-local'
+      ? [remotePath, localPath]
+      : [localPath, remotePath];
 
     const directionLabel =
       direction === 'remote-to-local' ? 'remote to local' : 'local to remote';
@@ -224,7 +224,10 @@ echo "Sync completed successfully"
   }
 
   /**
-   * Build a bidirectional sync script.
+   * Build a bidirectional sync script using rclone bisync.
+   * 
+   * Uses bisync with --resync on first run to initialize the sync state.
+   * Creates remote directory if it doesn't exist.
    */
   buildBidirectional(): string {
     const { remotePath, localPath } = this.options;
@@ -236,13 +239,49 @@ set -e
 echo "Creating local directory..."
 mkdir -p "${localPath}"
 
-echo "Starting bidirectional sync..."
+echo "Ensuring remote directory exists..."
+# Parse remote name and path from remotePath (e.g., "drive:per/testing/t1")
+REMOTE_PATH="${remotePath}"
+REMOTE_NAME="\${REMOTE_PATH%%:*}"
+REMOTE_DIR="\${REMOTE_PATH#*:}"
 
-echo "Syncing local to remote..."
-rclone sync "${localPath}" "${remotePath}" ${flags}
+# Check if we can access the remote
+if ! rclone about "$REMOTE_NAME:" > /dev/null 2>&1; then
+    echo "ERROR: Cannot access remote '$REMOTE_NAME:'"
+    echo "Please verify your rclone configuration"
+    exit 1
+fi
 
-echo "Syncing remote to local..."
-rclone sync "${remotePath}" "${localPath}" ${flags}
+# Try to create the remote directory structure
+if [ -n "$REMOTE_DIR" ]; then
+    echo "Creating remote directory: $REMOTE_PATH"
+    # Use lsf to check if directory exists, create if it doesn't
+    if ! rclone lsf "$REMOTE_PATH" --dirs-only > /dev/null 2>&1; then
+        echo "Remote directory does not exist, creating it..."
+        rclone mkdir "$REMOTE_PATH" 2>&1 || {
+            echo "Warning: mkdir failed, but continuing (directory might already exist)"
+        }
+    else
+        echo "Remote directory already exists"
+    fi
+else
+    echo "Using remote root directory"
+fi
+
+echo "Starting bidirectional sync with rclone bisync..."
+
+# Check if bisync state exists
+BISYNC_STATE_DIR="$HOME/.cache/rclone/bisync"
+mkdir -p "$BISYNC_STATE_DIR"
+STATE_FILE="$BISYNC_STATE_DIR/$(echo "${remotePath}..${localPath}" | sed 's/[^a-zA-Z0-9]/_/g').lst"
+
+if [ ! -f "$STATE_FILE" ]; then
+    echo "First sync - initializing bisync with --resync..."
+    rclone bisync "${remotePath}" "${localPath}" --resync ${flags} --create-empty-src-dirs
+else
+    echo "Running incremental bisync..."
+    rclone bisync "${remotePath}" "${localPath}" ${flags} --create-empty-src-dirs
+fi
 
 echo "Bidirectional sync completed successfully"
 `;
@@ -333,6 +372,148 @@ while true; do
     echo "[$(date)] Sync cycle completed. Sleeping for \${INTERVAL}s..."
     sleep "$INTERVAL"
 done
+`;
+  }
+}
+
+/**
+ * Options for cron job setup.
+ */
+export interface CronJobOptions extends SyncOptions {
+  /** Cron schedule expression (default: every 10 minutes) */
+  schedule?: string;
+  /** Log file path for cron output */
+  logFile?: string;
+}
+
+/**
+ * Builder for cron job setup script.
+ * 
+ * Generates a bash script that sets up a cron job for automatic syncing.
+ */
+export class CronJobScriptBuilder {
+  private options: Required<CronJobOptions>;
+
+  constructor(options: CronJobOptions) {
+    this.options = {
+      remotePath: options.remotePath,
+      localPath: options.localPath,
+      excludePatterns: options.excludePatterns ?? DEFAULT_EXCLUDE_PATTERNS,
+      verbose: options.verbose ?? false,
+      additionalFlags: options.additionalFlags ?? [],
+      schedule: options.schedule ?? '*/10 * * * *', // Every 10 minutes
+      logFile: options.logFile ?? '/tmp/rclone-bisync.log',
+    };
+  }
+
+  /**
+   * Build flags for rclone bisync command.
+   */
+  private buildFlags(): string {
+    const flags: string[] = [];
+
+    if (this.options.verbose) {
+      flags.push('-v');
+    }
+
+    for (const pattern of this.options.excludePatterns) {
+      flags.push(`--exclude "${pattern}"`);
+    }
+
+    flags.push(...this.options.additionalFlags);
+
+    return flags.join(' ');
+  }
+
+  /**
+   * Build the cron job setup script.
+   */
+  build(): string {
+    const { remotePath, localPath, schedule, logFile } = this.options;
+    const flags = this.buildFlags();
+
+    return `#!/bin/bash
+set -e
+
+echo "Setting up cron job for automatic rclone bisync..."
+
+# Create the sync script
+SYNC_SCRIPT="/tmp/rclone-bisync-job.sh"
+cat > "$SYNC_SCRIPT" << 'SYNCEOF'
+#!/bin/bash
+# Automatic bisync job created by Colab VSCode extension
+
+# Create local directory if it doesn't exist
+mkdir -p "${localPath}"
+
+# Check if bisync state exists
+BISYNC_STATE_DIR="$HOME/.cache/rclone/bisync"
+STATE_FILE="$BISYNC_STATE_DIR/$(echo "${remotePath}..${localPath}" | sed 's/[^a-zA-Z0-9]/_/g').lst"
+
+if [ ! -f "$STATE_FILE" ]; then
+    echo "[$(date)] First sync - initializing bisync with --resync..."
+    rclone bisync "${remotePath}" "${localPath}" --resync ${flags} 2>&1
+else
+    echo "[$(date)] Running incremental bisync..."
+    rclone bisync "${remotePath}" "${localPath}" ${flags} 2>&1
+fi
+
+echo "[$(date)] Sync completed"
+SYNCEOF
+
+chmod +x "$SYNC_SCRIPT"
+
+# Add cron job
+CRON_CMD="$SYNC_SCRIPT >> ${logFile} 2>&1"
+CRON_ENTRY="${schedule} $CRON_CMD"
+
+# Check if cron job already exists
+if crontab -l 2>/dev/null | grep -F "$SYNC_SCRIPT" > /dev/null; then
+    echo "Cron job already exists, updating..."
+    # Remove old entry and add new one
+    (crontab -l 2>/dev/null | grep -v -F "$SYNC_SCRIPT"; echo "$CRON_ENTRY") | crontab -
+else
+    echo "Adding new cron job..."
+    (crontab -l 2>/dev/null; echo "$CRON_ENTRY") | crontab -
+fi
+
+echo "Cron job configured successfully!"
+echo "Schedule: ${schedule} (every 10 minutes)"
+echo "Log file: ${logFile}"
+echo "Sync script: $SYNC_SCRIPT"
+echo ""
+echo "Current crontab:"
+crontab -l
+`;
+  }
+
+  /**
+   * Build a script to remove the cron job.
+   */
+  buildRemove(): string {
+    return `#!/bin/bash
+set -e
+
+echo "Removing rclone bisync cron job..."
+
+SYNC_SCRIPT="/tmp/rclone-bisync-job.sh"
+
+if crontab -l 2>/dev/null | grep -F "$SYNC_SCRIPT" > /dev/null; then
+    crontab -l 2>/dev/null | grep -v -F "$SYNC_SCRIPT" | crontab -
+    echo "Cron job removed successfully"
+else
+    echo "No cron job found"
+fi
+
+# Optionally remove the sync script
+if [ -f "$SYNC_SCRIPT" ]; then
+    rm "$SYNC_SCRIPT"
+    echo "Sync script removed: $SYNC_SCRIPT"
+fi
+
+echo ""
+echo "Current crontab:"
+crontab -l 2>/dev/null || echo "(empty)"
 `;
   }
 }

@@ -15,6 +15,7 @@ export {
   UploadConfigScriptBuilder,
   SyncScriptBuilder,
   SyncDaemonScriptBuilder,
+  CronJobScriptBuilder,
   ValidationScriptBuilder,
 } from './builders';
 
@@ -23,6 +24,7 @@ export type {
   SyncOptions,
   UploadConfigOptions,
   SyncDaemonOptions,
+  CronJobOptions,
 } from './builders';
 
 export {

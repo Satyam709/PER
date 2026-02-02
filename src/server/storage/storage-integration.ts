@@ -193,9 +193,10 @@ export class StorageIntegration {
       this.updateStatus(serverId, StorageStatus.SYNCING);
 
       // Perform bidirectional sync
+      const localPath = this.getLocalPath(serverId);
       const builder = new SyncScriptBuilder({
         remotePath: config.remoteRootPath,
-        localPath: DEFAULT_LOCAL_PATH,
+        localPath,
         verbose: true,
       });
       const syncScript = builder.buildBidirectional();
@@ -279,6 +280,62 @@ export class StorageIntegration {
   }
 
   /**
+   * Setup automatic sync cron job on a server.
+   */
+  async setupCronJob(executor: CommandExecutor): Promise<StorageSetupResult> {
+    const serverId = executor.serverId;
+    this.logger.info(`Setting up cron job for server: ${serverId}`);
+
+    try {
+      const config = await this.storageConfigManager.get();
+      if (!config?.enabled) {
+        return {
+          success: false,
+          status: StorageStatus.NOT_CONFIGURED,
+          message: 'Storage not configured',
+        };
+      }
+
+      // Lazy import to avoid unused import error
+      const { CronJobScriptBuilder } = await import('./scripts/index.js');
+
+      const builder = new CronJobScriptBuilder({
+        remotePath: config.remoteRootPath,
+        localPath: this.getLocalPath(serverId),
+        verbose: false, // Less verbose for cron jobs
+      });
+
+      const cronScript = builder.build();
+      await executor.execute(cronScript);
+
+      this.logger.info('Cron job setup completed successfully');
+
+      return {
+        success: true,
+        status: StorageStatus.READY,
+        message: 'Cron job configured for automatic sync every 10 minutes',
+      };
+    } catch (error) {
+      this.logger.error(`Cron job setup failed on server ${serverId}:`, error);
+      return {
+        success: false,
+        status: StorageStatus.ERROR,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
+   * Get workspace-specific local path for a server.
+   * Each workspace gets its own directory to avoid conflicts.
+   */
+  private getLocalPath(serverId: string): string {
+    // Use server ID to create unique path
+    const sanitizedId = serverId.replace(/[^a-zA-Z0-9-]/g, '_');
+    return `${DEFAULT_LOCAL_PATH}_${sanitizedId}`;
+  }
+
+  /**
    * Clean up storage for a removed server.
    */
   removeServer(serverId: string): void {
@@ -336,9 +393,10 @@ export class StorageIntegration {
   ): Promise<void> {
     this.logger.info('Performing initial sync...');
 
+    const localPath = this.getLocalPath(executor.serverId);
     const builder = new SyncScriptBuilder({
       remotePath,
-      localPath: DEFAULT_LOCAL_PATH,
+      localPath,
       verbose: true,
     });
     const syncScript = builder.build('remote-to-local');

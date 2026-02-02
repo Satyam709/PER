@@ -20,8 +20,16 @@ export const DEFAULT_EXCLUDE_PATTERNS = ['.git/**', '*.tmp', '*.swp'];
 
 /**
  * Default local path for synced projects on Colab servers.
+ * Each workspace mounts at /content, so we sync to a workspace-specific
+ * subdirectory.
  */
-export const DEFAULT_LOCAL_PATH = '/content/project';
+export const DEFAULT_LOCAL_PATH = '/content';
+
+/**
+ * Default workspace-specific sync directory name.
+ * The actual sync path will be `/content/{workspaceId}`.
+ */
+export const WORKSPACE_SYNC_DIR_PREFIX = 'workspace';
 
 /**
  * Default rclone config path.
