@@ -5,6 +5,7 @@
  */
 
 import { randomUUID, UUID } from 'crypto';
+import {  JupyterServer } from '@vscode/jupyter-extension';
 import fetch, {
   Headers,
   Request,
@@ -13,7 +14,6 @@ import fetch, {
   Response,
 } from 'node-fetch';
 import vscode from 'vscode';
-import { CommandExecutor } from '../common/command-executor';
 import { log } from '../common/logging';
 import {
   Assignment,
@@ -36,10 +36,11 @@ import {
   COLAB_CLIENT_AGENT_HEADER,
   COLAB_RUNTIME_PROXY_TOKEN_HEADER,
 } from '../server/colab/headers';
-import { TerminalExecutor } from '../server/colab/terminal-executor';
+import { ColabTerminalExecutor } from '../server/colab/terminal-executor';
 import { REMOVE_SERVER } from '../server/commands/constants';
 import { ProxiedJupyterClient } from './client';
 import { colabProxyWebSocket } from './colab-proxy-web-socket';
+import { CommandExecutor } from './servers';
 import {
   AllServers,
   ColabAssignedServer,
@@ -547,10 +548,6 @@ export class AssignmentManager implements vscode.Disposable {
     headers[COLAB_RUNTIME_PROXY_TOKEN_HEADER.key] = token;
     headers[COLAB_CLIENT_AGENT_HEADER.key] = COLAB_CLIENT_AGENT_HEADER.value;
 
-    // Create terminal provider for this server (lazy connection)
-    const terminalProvider = this.createTerminalProvider(server.id);
-    this.serverTerminals.set(server.id, terminalProvider);
-
     const colabServer = {
       id: server.id,
       label: server.label,
@@ -567,47 +564,35 @@ export class AssignmentManager implements vscode.Disposable {
         fetch: colabProxyFetch(token),
       },
       dateAssigned,
-      terminal: terminalProvider,
     };
-    const result: ColabAssignedServer = {
+    const websocketAddedServer = {
       ...colabServer,
       connectionInformation: {
         ...colabServer.connectionInformation,
         WebSocket: colabProxyWebSocket(this.vs, this.client, colabServer),
       },
     };
-    log.info('server assigned ', result);
-
-    return result;
+    log.debug('server assigned ', websocketAddedServer);
+    return {
+      ...websocketAddedServer,
+      terminal: this.createTerminalProvider(websocketAddedServer),
+    };
   }
 
   /**
-   * Creates a terminal provider for a server that lazily creates the terminal
-   * connection. The terminal is only connected when getTerminal() is called.
+   * Creates/Add a terminal provider for a server
+   * The terminal is only connected when getTerminal() is called.
    */
-  private createTerminalProvider(serverId: string): TerminalProvider {
+  private createTerminalProvider(server: JupyterServer): TerminalProvider {
     let executor: CommandExecutor | null = null;
-    // Capture storage reference for use in closure
-    const storage = this.storage;
-
     return {
-      async getTerminal(): Promise<CommandExecutor> {
-        if (!executor) {
-          // We need to get the server to create the executor
-          // This is a bit circular, but the server is already stored
-          log.info(`Creating on-demand terminal for server: ${serverId}`);
-          // Get server from storage to create executor with connection info
-          const storedServer = await storage.get(serverId as UUID);
-          if (!storedServer) {
-            throw new Error(`Server ${serverId} not found in storage`);
-          }
-          executor = new TerminalExecutor(storedServer);
-        }
+      getTerminal(): CommandExecutor {
+        executor ??= new ColabTerminalExecutor(server);
         return executor;
       },
       disposeTerminal(): void {
         if (executor) {
-          log.info(`Disposing terminal for server: ${serverId}`);
+          log.info(`Disposing terminal for server: ${server.id}`);
           executor.dispose();
           executor = null;
         }

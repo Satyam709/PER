@@ -10,9 +10,9 @@ import {
 } from '@vscode/jupyter-extension';
 import { WebSocket, MessageEvent, ErrorEvent } from 'ws';
 import z from 'zod';
-import { CommandExecutor, CommandResult } from '../../common/command-executor';
 import { Logger, logWithComponent } from '../../common/logging';
 import { GeneralJupyterClient, JupyterClient } from '../../jupyter/client';
+import { CommandExecutor, CommandResult } from '../../jupyter/servers';
 import { convertProtocol } from '../../utils/extras';
 
 /**
@@ -27,7 +27,7 @@ const ColabTerminalEvent = z.object({
 });
 export type ColabTerminalEventType = z.infer<typeof ColabTerminalEvent>;
 
-export class TerminalExecutor implements CommandExecutor {
+export class ColabTerminalExecutor implements CommandExecutor {
   // clients for communication with the server
   private terminalWs: WebSocket | null;
   private logger: Logger;
@@ -52,17 +52,10 @@ export class TerminalExecutor implements CommandExecutor {
     this.logger = logWithComponent('TerminalExecutor');
     this.setupRestClient();
     this.setupTerminalWs();
-    setTimeout(() => {
-      if (!this.terminalWs || this.terminalWs.readyState !== 1) {
-        this.logger.error(
-          'Terminal WebSocket failed to open within timeout period',
-        );
-      } else {
-        this.logger.info('Terminal WebSocket connection established');
-        // Test command
-        void this.execute('ls');
-      }
-    }, 10000);
+
+    this.logger.debug('created TerminalExecutor', {
+      serverInfo: JSON.stringify(this.connectionInfo),
+    });
   }
 
   /**

@@ -5,7 +5,7 @@
  */
 
 import vscode from 'vscode';
-import { CommandExecutor } from '../../common/command-executor';
+import { CommandExecutor } from '../../jupyter/command-executor';
 import { Logger, logWithComponent } from '../../common/logging';
 import { StorageConfigManager } from './config';
 import { RcloneManager } from './rclone-manager';

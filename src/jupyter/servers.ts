@@ -1,6 +1,7 @@
 /**
  * @license
  * Copyright 2025 Google LLC
+ * Copyright 2026 Satyam
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -9,8 +10,64 @@ import {
   JupyterServer,
   JupyterServerConnectionInformation,
 } from '@vscode/jupyter-extension';
-import { CommandExecutor } from '../common/command-executor';
 import { Variant, Shape } from '../server/colab/api';
+
+/**
+ * Result of a command execution.
+ */
+export interface CommandResult {
+  /** Whether the command succeeded */
+  success: boolean;
+  /** Command output (stdout + stderr) */
+  output: string;
+  /** Exit code if available */
+  exitCode?: number;
+  /** Error message if failed */
+  error?: string;
+}
+
+/**
+ * Common interface for executing commands on remote servers.
+ *
+ * Implementations can target different backends such as:
+ * - Colab terminal via WebSocket
+ * - Custom instance SSH connections
+ * - Other remote execution mechanisms
+ */
+export interface CommandExecutor {
+  /**
+   * The ID of the server this executor is connected to.
+   * Used for status tracking and logging.
+   */
+  readonly serverId: string;
+
+  /**
+   * Executes the given command with optional arguments.
+   *
+   * @param cmd - Command to execute
+   * @param args - Additional command arguments
+   * @returns Promise resolving to the command execution result
+   */
+  execute(cmd: string, ...args: string[]): Promise<CommandResult>;
+
+  /**
+   * Dispose of resources and cleanup connections.
+   * Should be called when the executor is no longer needed.
+   */
+  dispose(): void;
+}
+
+/**
+ * Options for command execution.
+ */
+export interface ExecuteOptions {
+  /** Timeout in milliseconds (default: 30000) */
+  timeout?: number;
+  /** Expected output pattern to wait for */
+  expectedOutput?: RegExp;
+  /** Whether to show output in real-time */
+  streamOutput?: boolean;
+}
 
 /**
  * Provides on-demand terminal/command execution for a server.
@@ -21,7 +78,7 @@ export interface TerminalProvider {
    * Gets or creates a terminal connection for this server.
    * Creates connection on first call, reuses on subsequent calls.
    */
-  getTerminal(): Promise<CommandExecutor>;
+  getTerminal(): CommandExecutor;
 
   /**
    * Disposes the terminal connection if it exists.
@@ -62,7 +119,7 @@ export type ColabAssignedServer = ColabJupyterServer & {
   };
   readonly dateAssigned: Date;
   /** On-demand terminal provider for executing commands on this server */
-  readonly terminal: TerminalProvider;
+  readonly terminal?: TerminalProvider;
 };
 
 export function isColabAssignedServer(
