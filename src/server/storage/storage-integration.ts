@@ -9,6 +9,12 @@ import { Logger, logWithComponent } from '../../common/logging';
 import { CommandExecutor } from '../../jupyter/servers';
 import { StorageConfigManager } from './config';
 import { RcloneManager } from './rclone-manager';
+import {
+  InstallRcloneScriptBuilder,
+  UploadConfigScriptBuilder,
+  SyncScriptBuilder,
+  DEFAULT_LOCAL_PATH,
+} from './scripts';
 
 /**
  * Status of storage setup on a server.
@@ -187,18 +193,14 @@ export class StorageIntegration {
       this.updateStatus(serverId, StorageStatus.SYNCING);
 
       // Perform bidirectional sync
-      const remotePath = config.remoteRootPath;
-      const localPath = '/content/project';
+      const builder = new SyncScriptBuilder({
+        remotePath: config.remoteRootPath,
+        localPath: DEFAULT_LOCAL_PATH,
+        verbose: true,
+      });
+      const syncScript = builder.buildBidirectional();
 
-      // Sync local to remote
-      await executor.execute(
-        `rclone sync "${localPath}" "${remotePath}" -v --exclude ".git/**"`,
-      );
-
-      // Sync remote to local
-      await executor.execute(
-        `rclone sync "${remotePath}" "${localPath}" -v --exclude ".git/**"`,
-      );
+      await executor.execute(syncScript);
 
       this.updateStatus(serverId, StorageStatus.READY);
 
@@ -302,19 +304,8 @@ export class StorageIntegration {
   private async installRclone(executor: CommandExecutor): Promise<void> {
     this.logger.info('Installing rclone on server...');
 
-    const installScript = `
-#!/bin/bash
-set -e
-
-if command -v rclone &> /dev/null; then
-    echo "rclone already installed"
-    exit 0
-fi
-
-echo "Installing rclone..."
-curl https://rclone.org/install.sh | sudo bash
-echo "rclone installed successfully"
-`;
+    const builder = new InstallRcloneScriptBuilder();
+    const installScript = builder.build();
 
     await executor.execute(installScript);
     this.logger.info('Rclone installation completed');
@@ -329,22 +320,8 @@ echo "rclone installed successfully"
   ): Promise<void> {
     this.logger.info('Uploading rclone configuration...');
 
-    // Decode base64 config
-    const decodedConfig = Buffer.from(configContent, 'base64').toString(
-      'utf-8',
-    );
-
-    // Escape single quotes in the config content
-    const escapedConfig = decodedConfig.replace(/'/g, "'\\''");
-
-    const uploadScript = `
-mkdir -p ~/.config/rclone
-cat > ~/.config/rclone/rclone.conf << 'EOF'
-${escapedConfig}
-EOF
-chmod 600 ~/.config/rclone/rclone.conf
-echo "Rclone config uploaded successfully"
-`;
+    const builder = new UploadConfigScriptBuilder({ configContent });
+    const uploadScript = builder.build();
 
     await executor.execute(uploadScript);
     this.logger.info('Rclone configuration uploaded');
@@ -359,13 +336,12 @@ echo "Rclone config uploaded successfully"
   ): Promise<void> {
     this.logger.info('Performing initial sync...');
 
-    const localPath = '/content/project';
-
-    const syncScript = `
-mkdir -p "${localPath}"
-rclone sync "${remotePath}" "${localPath}" -v --exclude ".git/**"
-echo "Initial sync completed"
-`;
+    const builder = new SyncScriptBuilder({
+      remotePath,
+      localPath: DEFAULT_LOCAL_PATH,
+      verbose: true,
+    });
+    const syncScript = builder.build('remote-to-local');
 
     await executor.execute(syncScript);
     this.logger.info('Initial sync completed');

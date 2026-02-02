@@ -13,6 +13,7 @@ googlecolab
 googlers
 grayscale
 highmem
+listremotes
 ipykernel
 ipynb
 jupyterclient
