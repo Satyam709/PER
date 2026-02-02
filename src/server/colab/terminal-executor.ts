@@ -36,6 +36,14 @@ export class TerminalExecutor implements CommandExecutor {
   private TERM_ENDPOINT = '/colab/tty';
 
   private connectionInfo: JupyterServerConnectionInformation;
+
+  /**
+   * The ID of the server this executor is connected to.
+   */
+  get serverId(): string {
+    return this.server.id;
+  }
+
   constructor(private readonly server: JupyterServer) {
     if (!server.connectionInformation) {
       throw new Error('TerminalExecutor: Connection info not found');

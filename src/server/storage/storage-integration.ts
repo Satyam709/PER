@@ -7,7 +7,6 @@
 import vscode from 'vscode';
 import { CommandExecutor } from '../../common/command-executor';
 import { Logger, logWithComponent } from '../../common/logging';
-import { ColabAssignedServer } from '../../jupyter/servers';
 import { StorageConfigManager } from './config';
 import { RcloneManager } from './rclone-manager';
 
@@ -80,15 +79,11 @@ export class StorageIntegration {
   /**
    * Setup storage on a server.
    *
-   * @param server - The server to setup storage on
-   * @param executor - Command executor for the server
+   * @param executor - Command executor for the server (carries serverId)
    * @returns Setup result
    */
-  async setupOnServer(
-    server: ColabAssignedServer,
-    executor: CommandExecutor,
-  ): Promise<StorageSetupResult> {
-    const serverId = server.id;
+  async setupOnServer(executor: CommandExecutor): Promise<StorageSetupResult> {
+    const serverId = executor.serverId;
     this.logger.info(`Setting up storage on server: ${serverId}`);
 
     try {
@@ -166,11 +161,8 @@ export class StorageIntegration {
   /**
    * Perform a manual sync on a server.
    */
-  async syncNow(
-    server: ColabAssignedServer,
-    executor: CommandExecutor,
-  ): Promise<StorageSetupResult> {
-    const serverId = server.id;
+  async syncNow(executor: CommandExecutor): Promise<StorageSetupResult> {
+    const serverId = executor.serverId;
     this.logger.info(`Manual sync requested for server: ${serverId}`);
 
     try {
@@ -236,10 +228,7 @@ export class StorageIntegration {
   /**
    * Validate storage setup on a server.
    */
-  async validateSetup(
-    _server: ColabAssignedServer,
-    executor: CommandExecutor,
-  ): Promise<StorageSetupResult> {
+  async validateSetup(executor: CommandExecutor): Promise<StorageSetupResult> {
     try {
       const isSetup = await this.checkIfSetup(executor);
       const config = await this.storageConfigManager.get();

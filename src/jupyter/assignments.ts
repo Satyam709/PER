@@ -13,6 +13,7 @@ import fetch, {
   Response,
 } from 'node-fetch';
 import vscode from 'vscode';
+import { CommandExecutor } from '../common/command-executor';
 import { log } from '../common/logging';
 import {
   Assignment,
@@ -35,10 +36,10 @@ import {
   COLAB_CLIENT_AGENT_HEADER,
   COLAB_RUNTIME_PROXY_TOKEN_HEADER,
 } from '../server/colab/headers';
+import { TerminalExecutor } from '../server/colab/terminal-executor';
 import { REMOVE_SERVER } from '../server/commands/constants';
 import { ProxiedJupyterClient } from './client';
 import { colabProxyWebSocket } from './colab-proxy-web-socket';
-import { ExecutorManager } from './executor-manager';
 import {
   AllServers,
   ColabAssignedServer,
@@ -46,6 +47,7 @@ import {
   ColabServerDescriptor,
   DEFAULT_CPU_SERVER,
   isColabAssignedServer,
+  TerminalProvider,
   UnownedServer,
 } from './servers';
 import { ServerStorage } from './storage';
@@ -82,38 +84,27 @@ export class AssignmentManager implements vscode.Disposable {
 
   private readonly assignmentChange: vscode.EventEmitter<AssignmentChangeEvent>;
   private readonly disposables: vscode.Disposable[] = [];
-  private readonly executorManager: ExecutorManager;
+  /** Track terminal providers for cleanup on server removal */
+  private readonly serverTerminals = new Map<string, TerminalProvider>();
 
   constructor(
     private readonly vs: typeof vscode,
     private readonly client: ColabClient,
     private readonly storage: ServerStorage,
   ) {
-    this.executorManager = new ExecutorManager();
-    this.disposables.push(this.executorManager);
     this.assignmentChange = new vs.EventEmitter<AssignmentChangeEvent>();
     this.disposables.push(this.assignmentChange);
     this.onDidAssignmentsChange = this.assignmentChange.event;
 
-    // Handle executor lifecycle based on server assignments
+    // Handle terminal cleanup on server removal
     this.onDidAssignmentsChange((e) => {
-      // Remove executors for removed servers
       for (const { server } of e.removed) {
-        this.executorManager.removeExecutor(server.id);
-      }
-
-      // Create executors for newly added servers
-      for (const server of e.added) {
-        try {
-          this.executorManager.getOrCreateExecutor(server);
-        } catch (error) {
-          log.error(
-            `Failed to create executor for server ${server.id}:`,
-            error,
-          );
+        const terminal = this.serverTerminals.get(server.id);
+        if (terminal) {
+          terminal.disposeTerminal();
+          this.serverTerminals.delete(server.id);
         }
       }
-
       void this.notifyReloadNotebooks(e);
     });
   }
@@ -480,58 +471,6 @@ export class AssignmentManager implements vscode.Disposable {
     await this.client.unassign(server.endpoint, signal);
   }
 
-  /**
-   * Initializes executors for all existing assigned servers.
-   *
-   * This should be called after extension activation when the user is
-   * authorized. It ensures that terminal connections are available for servers
-   * that were loaded from storage (e.g., after extension reload).
-   *
-   * @param signal - Optional abort signal to cancel initialization
-   */
-  async initializeExecutors(signal?: AbortSignal): Promise<void> {
-    log.info('Initializing executors for existing servers');
-
-    try {
-      const servers = await this.getServers('extension', signal);
-      log.debug(`Found ${String(servers.length)} existing servers`);
-
-      let successCount = 0;
-      let failureCount = 0;
-
-      for (const server of servers) {
-        try {
-          this.executorManager.getOrCreateExecutor(server);
-          successCount++;
-          log.debug(`Executor initialized for server: ${server.id}`);
-        } catch (error) {
-          failureCount++;
-          log.error(
-            `Failed to initialize executor for server ${server.id}:`,
-            error,
-          );
-        }
-      }
-
-      log.info(
-        `Executor initialization complete: ${String(successCount)} succeeded, ${String(failureCount)} failed`,
-      );
-    } catch (error: unknown) {
-      log.error('Failed to initialize executors:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Gets the command executor for a given server.
-   *
-   * @param serverId - The ID of the server
-   * @returns The command executor if it exists, undefined otherwise
-   */
-  getExecutor(serverId: string) {
-    return this.executorManager.getExecutor(serverId);
-  }
-
   async getDefaultLabel(
     variant: Variant,
     accelerator?: string,
@@ -608,7 +547,11 @@ export class AssignmentManager implements vscode.Disposable {
     headers[COLAB_RUNTIME_PROXY_TOKEN_HEADER.key] = token;
     headers[COLAB_CLIENT_AGENT_HEADER.key] = COLAB_CLIENT_AGENT_HEADER.value;
 
-    const colabServer: ColabAssignedServer = {
+    // Create terminal provider for this server (lazy connection)
+    const terminalProvider = this.createTerminalProvider(server.id);
+    this.serverTerminals.set(server.id, terminalProvider);
+
+    const colabServer = {
       id: server.id,
       label: server.label,
       variant: server.variant,
@@ -624,8 +567,9 @@ export class AssignmentManager implements vscode.Disposable {
         fetch: colabProxyFetch(token),
       },
       dateAssigned,
+      terminal: terminalProvider,
     };
-    const result = {
+    const result: ColabAssignedServer = {
       ...colabServer,
       connectionInformation: {
         ...colabServer.connectionInformation,
@@ -634,8 +578,41 @@ export class AssignmentManager implements vscode.Disposable {
     };
     log.info('server assigned ', result);
 
-    // Executor will be created by the assignment change event handler
     return result;
+  }
+
+  /**
+   * Creates a terminal provider for a server that lazily creates the terminal
+   * connection. The terminal is only connected when getTerminal() is called.
+   */
+  private createTerminalProvider(serverId: string): TerminalProvider {
+    let executor: CommandExecutor | null = null;
+    // Capture storage reference for use in closure
+    const storage = this.storage;
+
+    return {
+      async getTerminal(): Promise<CommandExecutor> {
+        if (!executor) {
+          // We need to get the server to create the executor
+          // This is a bit circular, but the server is already stored
+          log.info(`Creating on-demand terminal for server: ${serverId}`);
+          // Get server from storage to create executor with connection info
+          const storedServer = await storage.get(serverId as UUID);
+          if (!storedServer) {
+            throw new Error(`Server ${serverId} not found in storage`);
+          }
+          executor = new TerminalExecutor(storedServer);
+        }
+        return executor;
+      },
+      disposeTerminal(): void {
+        if (executor) {
+          log.info(`Disposing terminal for server: ${serverId}`);
+          executor.dispose();
+          executor = null;
+        }
+      },
+    };
   }
 
   private async notifyMaxAssignmentsExceeded() {

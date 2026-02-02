@@ -5,7 +5,7 @@
  */
 
 import vscode from 'vscode';
-import { AssignmentManager } from '../../jupyter/assignments';
+import { NotebookServerTracker } from '../../jupyter/notebook-server-tracker';
 import { StorageConfigManager } from './config';
 import { StorageIntegration, StorageStatus } from './storage-integration';
 
@@ -20,7 +20,7 @@ export class StorageStatusBar implements vscode.Disposable {
 
   constructor(
     private readonly vs: typeof vscode,
-    private readonly assignmentManager: AssignmentManager,
+    private readonly notebookTracker: NotebookServerTracker,
     private readonly storageIntegration: StorageIntegration,
     private readonly storageConfigManager: StorageConfigManager,
   ) {
@@ -39,9 +39,9 @@ export class StorageStatusBar implements vscode.Disposable {
       }),
     );
 
-    // Listen to server assignment changes
+    // Listen to active notebook/server context changes
     this.disposables.push(
-      assignmentManager.onDidAssignmentsChange(() => {
+      notebookTracker.onDidChangeActiveServerContext(() => {
         void this.updateStatusBar();
       }),
     );
@@ -82,12 +82,10 @@ export class StorageStatusBar implements vscode.Disposable {
       return;
     }
 
-    const server = await this.assignmentManager.latestServer();
+    // Hide if no active notebook connected to a server
+    const server = this.notebookTracker.getActiveServer();
     if (!server) {
-      this.statusBarItem.text = '$(cloud-upload) Storage: Not Connected';
-      this.statusBarItem.tooltip = 'No active server';
-      this.statusBarItem.backgroundColor = undefined;
-      this.statusBarItem.show();
+      this.statusBarItem.hide();
       return;
     }
 
@@ -154,9 +152,11 @@ export class StorageStatusBar implements vscode.Disposable {
       return;
     }
 
-    const server = await this.assignmentManager.latestServer();
+    const server = this.notebookTracker.getActiveServer();
     if (!server) {
-      await this.vs.window.showWarningMessage('No active server found.');
+      await this.vs.window.showWarningMessage(
+        'Open a notebook connected to a PER server first.',
+      );
       return;
     }
 

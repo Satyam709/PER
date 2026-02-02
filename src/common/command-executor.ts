@@ -28,6 +28,12 @@ export interface CommandResult {
  */
 export interface CommandExecutor {
   /**
+   * The ID of the server this executor is connected to.
+   * Used for status tracking and logging.
+   */
+  readonly serverId: string;
+
+  /**
    * Executes the given command with optional arguments.
    *
    * @param cmd - Command to execute

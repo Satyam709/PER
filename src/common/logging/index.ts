@@ -44,7 +44,7 @@ export enum LogLevel {
 export type ActionableLogLevel = Exclude<LogLevel, LogLevel.Off>;
 
 /** The configured log level. */
-let level: LogLevel = LogLevel.Debug;
+let level: LogLevel = LogLevel.Info;
 
 const loggers: Logger[] = [];
 
@@ -58,7 +58,7 @@ export function initializeLogger(
 
   level = getConfiguredLogLevel(vs);
   const configListener = vs.workspace.onDidChangeConfiguration((e) => {
-    if (e.affectsConfiguration('colab.logging')) {
+    if (e.affectsConfiguration('per.logging')) {
       level = getConfiguredLogLevel(vs);
     }
   });
@@ -170,7 +170,7 @@ const LOG_CONFIG_TO_LEVEL: Record<
 
 function getConfiguredLogLevel(vs: typeof vscode): LogLevel {
   const configLevel = vs.workspace
-    .getConfiguration('colab.logging')
+    .getConfiguration('per.logging')
     .get<Lowercase<keyof typeof LogLevel>>('level', 'info');
 
   return LOG_CONFIG_TO_LEVEL[configLevel];

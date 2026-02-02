@@ -13,7 +13,7 @@ import {
   JupyterServerCommandProvider,
   JupyterServerProvider,
 } from '@vscode/jupyter-extension';
-import { CancellationToken, Disposable, Event, ProviderResult } from 'vscode';
+import { CancellationToken, Disposable, Event } from 'vscode';
 import vscode from 'vscode';
 import { AuthChangeEvent } from '../auth/types';
 import { LatestCancelable } from '../common/async';
@@ -35,6 +35,7 @@ import { ServerPicker } from '../server/colab/server-picker';
 import { CUSTOM_INSTANCE } from '../server/custom-instance/commands/constants';
 import { isUUID } from '../utils/uuid';
 import { AssignmentChangeEvent, AssignmentManager } from './assignments';
+import { NotebookServerTracker } from './notebook-server-tracker';
 
 /**
  * Colab Jupyter server provider.
@@ -66,6 +67,7 @@ export class ColabJupyterServerProvider
     private readonly client: ColabClient,
     private readonly serverPicker: ServerPicker,
     jupyter: Jupyter,
+    private readonly notebookTracker: NotebookServerTracker,
   ) {
     this.serverChangeEmitter = new this.vs.EventEmitter<void>();
     this.onDidChangeServers = this.serverChangeEmitter.event;
@@ -90,29 +92,45 @@ export class ColabJupyterServerProvider
   /**
    * Provides the list of Colab {@link JupyterServer | Jupyter Servers} which
    * can be used.
+   *
+   * Note: We intentionally return servers WITHOUT connectionInformation here.
+   * This forces the Jupyter extension to call resolveJupyterServer when a
+   * server is selected, which is our hook for tracking notebook-server
+   * associations.
    */
   @traceMethod
-  provideJupyterServers(
+  async provideJupyterServers(
     _token: CancellationToken,
-  ): ProviderResult<JupyterServer[]> {
+  ): Promise<JupyterServer[]> {
     if (!this.isAuthorized) {
       return [];
     }
-    return this.assignmentManager.getServers('extension');
+    const servers = await this.assignmentManager.getServers('extension');
+    // Strip connectionInformation to force resolveJupyterServer to be called
+    return servers.map((s) => ({
+      id: s.id,
+      label: s.label,
+      // connectionInformation intentionally omitted
+    }));
   }
 
   /**
    * Resolves the connection for the provided Colab {@link JupyterServer}.
+   * Also tracks the notebook-server association for context-aware operations.
    */
   @traceMethod
-  resolveJupyterServer(
+  async resolveJupyterServer(
     server: JupyterServer,
     _token: CancellationToken,
-  ): ProviderResult<JupyterServer> {
+  ): Promise<JupyterServer> {
     if (!isUUID(server.id)) {
       throw new Error('Unexpected server ID format, expected UUID');
     }
-    return this.assignmentManager.refreshConnection(server.id);
+    log.debug(`resolving server ${server.label}`);
+    const resolved = await this.assignmentManager.refreshConnection(server.id);
+    // Track which notebook is using this server
+    this.notebookTracker.trackConnection(resolved);
+    return resolved;
   }
 
   /**

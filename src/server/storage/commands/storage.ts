@@ -5,7 +5,7 @@
  */
 
 import vscode from 'vscode';
-import { AssignmentManager } from '../../../jupyter/assignments';
+import { NotebookServerTracker } from '../../../jupyter/notebook-server-tracker';
 import { StorageConfigManager } from '../../storage/config';
 import { StorageConfigPicker } from '../../storage/storage-config-picker';
 import {
@@ -57,19 +57,13 @@ export async function configureStorage(
  */
 export async function setupStorageOnServer(
   vs: typeof vscode,
-  assignmentManager: AssignmentManager,
+  notebookTracker: NotebookServerTracker,
   storageIntegration: StorageIntegration,
 ): Promise<void> {
-  const server = await assignmentManager.latestServer();
+  const server = notebookTracker.getActiveServer();
   if (!server) {
-    await vs.window.showWarningMessage('No active server found.');
-    return;
-  }
-
-  const executor = assignmentManager.getExecutor(server.id);
-  if (!executor) {
-    await vs.window.showErrorMessage(
-      'Server executor not available. Try reconnecting to the server.',
+    await vs.window.showWarningMessage(
+      'Open a notebook connected to a PER server first.',
     );
     return;
   }
@@ -81,8 +75,11 @@ export async function setupStorageOnServer(
       cancellable: false,
     },
     async (progress) => {
+      progress.report({ message: 'Getting terminal connection...' });
+      const executor = await server.terminal.getTerminal();
+
       progress.report({ message: 'Installing rclone...' });
-      const result = await storageIntegration.setupOnServer(server, executor);
+      const result = await storageIntegration.setupOnServer(executor);
 
       if (result.success) {
         await vs.window.showInformationMessage(
@@ -102,19 +99,13 @@ export async function setupStorageOnServer(
  */
 export async function syncStorage(
   vs: typeof vscode,
-  assignmentManager: AssignmentManager,
+  notebookTracker: NotebookServerTracker,
   storageIntegration: StorageIntegration,
 ): Promise<void> {
-  const server = await assignmentManager.latestServer();
+  const server = notebookTracker.getActiveServer();
   if (!server) {
-    await vs.window.showWarningMessage('No active server found.');
-    return;
-  }
-
-  const executor = assignmentManager.getExecutor(server.id);
-  if (!executor) {
-    await vs.window.showErrorMessage(
-      'Server executor not available. Try reconnecting to the server.',
+    await vs.window.showWarningMessage(
+      'Open a notebook connected to a PER server first.',
     );
     return;
   }
@@ -127,7 +118,7 @@ export async function syncStorage(
       setup,
     );
     if (choice === setup) {
-      await setupStorageOnServer(vs, assignmentManager, storageIntegration);
+      await setupStorageOnServer(vs, notebookTracker, storageIntegration);
     }
     return;
   }
@@ -139,7 +130,8 @@ export async function syncStorage(
       cancellable: false,
     },
     async () => {
-      const result = await storageIntegration.syncNow(server, executor);
+      const executor = await server.terminal.getTerminal();
+      const result = await storageIntegration.syncNow(executor);
 
       if (result.success) {
         await vs.window.showInformationMessage(
@@ -159,24 +151,19 @@ export async function syncStorage(
  */
 export async function validateStorageSetup(
   vs: typeof vscode,
-  assignmentManager: AssignmentManager,
+  notebookTracker: NotebookServerTracker,
   storageIntegration: StorageIntegration,
 ): Promise<void> {
-  const server = await assignmentManager.latestServer();
+  const server = notebookTracker.getActiveServer();
   if (!server) {
-    await vs.window.showWarningMessage('No active server found.');
-    return;
-  }
-
-  const executor = assignmentManager.getExecutor(server.id);
-  if (!executor) {
-    await vs.window.showErrorMessage(
-      'Server executor not available. Try reconnecting to the server.',
+    await vs.window.showWarningMessage(
+      'Open a notebook connected to a PER server first.',
     );
     return;
   }
 
-  const result = await storageIntegration.validateSetup(server, executor);
+  const executor = await server.terminal.getTerminal();
+  const result = await storageIntegration.validateSetup(executor);
 
   if (result.success) {
     await vs.window.showInformationMessage(

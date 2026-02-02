@@ -16,6 +16,7 @@ import { AssignmentManager } from './jupyter/assignments';
 import { ContentsFileSystemProvider } from './jupyter/contents/file-system';
 import { JupyterConnectionManager } from './jupyter/contents/sessions';
 import { getJupyterApi } from './jupyter/jupyter-extension';
+import { NotebookServerTracker } from './jupyter/notebook-server-tracker';
 import { ColabJupyterServerProvider } from './jupyter/provider';
 import { ServerStorage } from './jupyter/storage';
 import { ColabClient } from './server/colab/client';
@@ -130,6 +131,10 @@ export async function activate(context: vscode.ExtensionContext) {
     colabClient,
     serverStorage,
   );
+
+  // Create notebook-server tracker for context-aware operations
+  const notebookTracker = new NotebookServerTracker(vscode, assignmentManager);
+
   const serverProvider = new ColabJupyterServerProvider(
     vscode,
     authEvent,
@@ -137,6 +142,7 @@ export async function activate(context: vscode.ExtensionContext) {
     colabClient,
     new ServerPicker(vscode, assignmentManager),
     jupyter.exports,
+    notebookTracker,
   );
   const jupyterConnections = new JupyterConnectionManager(
     vscode,
@@ -158,10 +164,10 @@ export async function activate(context: vscode.ExtensionContext) {
   );
   const consumptionMonitor = watchConsumption(colabClient);
 
-  // Create storage status bar
+  // Create storage status bar with notebook tracker for context awareness
   const storageStatusBar = new StorageStatusBar(
     vscode,
-    assignmentManager,
+    notebookTracker,
     storageIntegration,
     storageConfigManager,
   );
@@ -178,10 +184,7 @@ export async function activate(context: vscode.ExtensionContext) {
       toggleables.forEach((t) => {
         t.on();
       });
-      // Initialize executors for existing servers when authorized
-      void assignmentManager.initializeExecutors().catch((error: unknown) => {
-        log.error('Failed to initialize executors on auth change:', error);
-      });
+      // Terminal connections are now on-demand, no initialization needed
     } else {
       toggleables.forEach((t) => {
         t.off();
@@ -232,6 +235,7 @@ export async function activate(context: vscode.ExtensionContext) {
       fs,
       storageConfigManager,
       storageIntegration,
+      notebookTracker,
     ),
     ...setupStorageIntegration(
       vscode,
@@ -281,6 +285,7 @@ function registerCommands(
   fs: ContentsFileSystemProvider,
   storageConfigManager: StorageConfigManager,
   storageIntegration: StorageIntegration,
+  notebookTracker: NotebookServerTracker,
 ): Disposable[] {
   return [
     vscode.commands.registerCommand(SIGN_OUT.id, async () => {
@@ -318,16 +323,16 @@ function registerCommands(
       await configureStorage(vscode, storageConfigManager);
     }),
     vscode.commands.registerCommand(SYNC_STORAGE.id, async () => {
-      await syncStorage(vscode, assignmentManager, storageIntegration);
+      await syncStorage(vscode, notebookTracker, storageIntegration);
     }),
     vscode.commands.registerCommand('per.storage.setupServer', async () => {
-      await setupStorageOnServer(vscode, assignmentManager, storageIntegration);
+      await setupStorageOnServer(vscode, notebookTracker, storageIntegration);
     }),
     vscode.commands.registerCommand('per.storage.syncNow', async () => {
-      await syncStorage(vscode, assignmentManager, storageIntegration);
+      await syncStorage(vscode, notebookTracker, storageIntegration);
     }),
     vscode.commands.registerCommand('per.storage.validateSetup', async () => {
-      await validateStorageSetup(vscode, assignmentManager, storageIntegration);
+      await validateStorageSetup(vscode, notebookTracker, storageIntegration);
     }),
     vscode.commands.registerCommand(COLAB_TOOLBAR.id, async () => {
       await notebookToolbar(vscode, assignmentManager);
@@ -408,18 +413,12 @@ function setupStorageIntegration(
         return;
       }
 
-      // Setup storage on newly added servers
+      // Setup storage on newly added servers using on-demand terminal
       for (const server of e.added) {
-        // Wait a bit for executor to be ready
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        const executor = assignmentManager.getExecutor(server.id);
-        if (executor) {
-          log.info(`Auto-setting up storage on server: ${server.id}`);
-          const result = await storageIntegration.setupOnServer(
-            server,
-            executor,
-          );
+        log.info(`Auto-setting up storage on server: ${server.id}`);
+        try {
+          const executor = await server.terminal.getTerminal();
+          const result = await storageIntegration.setupOnServer(executor);
 
           if (result.success) {
             log.info(`Storage setup successful on server: ${server.id}`);
@@ -435,8 +434,8 @@ function setupStorageIntegration(
               `Storage setup failed: ${errorMsg}`,
             );
           }
-        } else {
-          log.warn(`Executor not available for server: ${server.id}`);
+        } catch (error) {
+          log.error(`Failed to setup storage on server ${server.id}:`, error);
         }
       }
 

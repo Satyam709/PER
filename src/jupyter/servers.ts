@@ -9,7 +9,25 @@ import {
   JupyterServer,
   JupyterServerConnectionInformation,
 } from '@vscode/jupyter-extension';
+import { CommandExecutor } from '../common/command-executor';
 import { Variant, Shape } from '../server/colab/api';
+
+/**
+ * Provides on-demand terminal/command execution for a server.
+ * Creates connection lazily on first use.
+ */
+export interface TerminalProvider {
+  /**
+   * Gets or creates a terminal connection for this server.
+   * Creates connection on first call, reuses on subsequent calls.
+   */
+  getTerminal(): Promise<CommandExecutor>;
+
+  /**
+   * Disposes the terminal connection if it exists.
+   */
+  disposeTerminal(): void;
+}
 
 /**
  * Colab's Jupyter server descriptor which includes machine-specific
@@ -43,6 +61,8 @@ export type ColabAssignedServer = ColabJupyterServer & {
     readonly tokenExpiry: Date;
   };
   readonly dateAssigned: Date;
+  /** On-demand terminal provider for executing commands on this server */
+  readonly terminal: TerminalProvider;
 };
 
 export function isColabAssignedServer(
