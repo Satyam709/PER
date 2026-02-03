@@ -15,6 +15,9 @@ grayscale
 highmem
 listremotes
 bisync
+pipefail
+modtime
+gdocs
 ipykernel
 ipynb
 jupyterclient

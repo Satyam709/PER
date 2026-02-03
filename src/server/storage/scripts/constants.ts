@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 Google LLC
+ * Copyright 2026 Satyam
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -55,3 +55,17 @@ export const MIN_SYNC_INTERVAL_SECONDS = 60;
  * Maximum recommended sync interval in seconds (1 hour).
  */
 export const MAX_SYNC_INTERVAL_SECONDS = 3600;
+
+/**
+ * Default safe args for bisync refer https://rclone.org/bisync/#check-access
+ * WITHOUT --resync and --dry-run
+ */
+export const DEFAULT_SAFE_BISYNC_ARGS = [
+  '--create-empty-src-dirs',
+  '--compare size,modtime,checksum',
+  '--slow-hash-sync-only',
+  '--resilient',
+  '-MvP',
+  '--drive-skip-gdocs',
+  '--fix-case',
+];

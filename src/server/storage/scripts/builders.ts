@@ -12,7 +12,11 @@
  * and maintainability.
  */
 
-import { DEFAULT_EXCLUDE_PATTERNS, RCLONE_INSTALL_URL } from './constants';
+import {
+  DEFAULT_EXCLUDE_PATTERNS,
+  DEFAULT_SAFE_BISYNC_ARGS,
+  RCLONE_INSTALL_URL,
+} from './constants';
 
 /**
  * Options for building rclone installation script.
@@ -96,7 +100,7 @@ fi
 }
 
 echo "Installing rclone..."
-curl ${installUrl} | sudo bash
+curl "${installUrl}" | sudo bash
 
 if command -v rclone &> /dev/null; then
     echo "rclone installed successfully: $(rclone version | head -n1)"
@@ -143,15 +147,15 @@ export class UploadConfigScriptBuilder {
 set -e
 
 echo "Creating rclone config directory..."
-mkdir -p ${configDir}
+mkdir -p "${configDir}"
 
 echo "Writing rclone configuration..."
-cat > ${configPath} << 'EOF'
+cat > "${configPath}" << 'EOF'
 ${escapedConfig}
 EOF
 
 echo "Setting config permissions..."
-chmod 600 ${configPath}
+chmod 600 "${configPath}"
 
 echo "Rclone config uploaded successfully to ${configPath}"
 `;
@@ -160,7 +164,7 @@ echo "Rclone config uploaded successfully to ${configPath}"
 
 /**
  * Builder for sync operation script.
- * 
+ *
  * Generates a bash script for syncing files between remote and local using
  * rclone bisync for true bidirectional synchronization.
  */
@@ -173,7 +177,7 @@ export class SyncScriptBuilder {
       localPath: options.localPath,
       excludePatterns: options.excludePatterns ?? DEFAULT_EXCLUDE_PATTERNS,
       verbose: options.verbose ?? false,
-      additionalFlags: options.additionalFlags ?? [],
+      additionalFlags: options.additionalFlags ?? DEFAULT_SAFE_BISYNC_ARGS,
     };
   }
 
@@ -203,9 +207,10 @@ export class SyncScriptBuilder {
     const { remotePath, localPath } = this.options;
     const flags = this.buildFlags();
 
-    const [source, destination] = direction === 'remote-to-local'
-      ? [remotePath, localPath]
-      : [localPath, remotePath];
+    const [source, destination] =
+      direction === 'remote-to-local'
+        ? [remotePath, localPath]
+        : [localPath, remotePath];
 
     const directionLabel =
       direction === 'remote-to-local' ? 'remote to local' : 'local to remote';
@@ -225,7 +230,7 @@ echo "Sync completed successfully"
 
   /**
    * Build a bidirectional sync script using rclone bisync.
-   * 
+   *
    * Uses bisync with --resync on first run to initialize the sync state.
    * Creates remote directory if it doesn't exist.
    */
@@ -235,11 +240,6 @@ echo "Sync completed successfully"
 
     return `#!/bin/bash
 set -e
-
-echo "Creating local directory..."
-mkdir -p "${localPath}"
-
-echo "Ensuring remote directory exists..."
 # Parse remote name and path from remotePath (e.g., "drive:per/testing/t1")
 REMOTE_PATH="${remotePath}"
 REMOTE_NAME="\${REMOTE_PATH%%:*}"
@@ -270,20 +270,115 @@ fi
 
 echo "Starting bidirectional sync with rclone bisync..."
 
+# Check if bisync state exists try with without resync
+BISYNC_STATE_DIR="$HOME/.cache/rclone/bisync"
+mkdir -p "$BISYNC_STATE_DIR"
+STATE_FILE="$BISYNC_STATE_DIR/$(echo "${remotePath}..${localPath}" | sed 's/[^a-zA-Z0-9]/_/g').lst"
+if [ ! -f "$STATE_FILE" ]; then
+    echo "First sync - initializing bisync with --resync..."
+    rclone bisync "${remotePath}" "${localPath}" ${flags} --resync
+else
+    echo "Running incremental bisync..."
+    if ! rclone bisync "${remotePath}" "${localPath}" ${flags}; then
+        printf "failed to incremental bisync"
+        exit 1
+    fi
+fi
+
+echo "Bidirectional sync completed successfully"
+`;
+  }
+
+  /**
+   * Build a initial resync script to build rclone listings
+   *
+   * Step0: Setup check files, to ensure dirs aren't completely empty
+   * Step1: Uses bisync with --resync and --dry-run on first
+   * Step2: just --resync run to initialize the sync state.
+   *
+   */
+  buildInitialResync(): string {
+    const { remotePath, localPath } = this.options;
+    const flags = this.buildFlags();
+
+    return `#!/bin/bash
+set -e
+# Parse remote name and path from remotePath (e.g., "drive:per/testing/t1")
+REMOTE_PATH="${remotePath}"
+REMOTE_NAME="\${REMOTE_PATH%%:*}"
+REMOTE_DIR="\${REMOTE_PATH#*:}"
+
+# Check if we can access the remote
+if ! rclone about "$REMOTE_NAME:" > /dev/null 2>&1; then
+    echo "ERROR: Cannot access remote '$REMOTE_NAME:'"
+    echo "Please verify your rclone configuration"
+    exit 1
+fi
+
+# Try to create the remote directory structure
+if [ -n "$REMOTE_DIR" ]; then
+    echo "Creating remote directory: $REMOTE_PATH"
+    # Use lsd to check if directory exists, create if it doesn't
+    if ! rclone lsd "$REMOTE_PATH" > /dev/null 2>&1; then
+        echo "Remote directory does not exist, creating it..."
+        rclone mkdir "$REMOTE_PATH" 2>&1 || {
+            echo "Error: mkdir failed"
+            exit 1
+        }
+    else
+        echo "Remote directory exists"
+    fi
+else
+    printf "Error: please specify the remote directory!"
+    exit 1
+fi
+
+LOCAL_PATH="${localPath}"
+# Try to create the remote directory structure
+if [ -n "$LOCAL_PATH" ]; then
+    echo "Creating local directory: $LOCAL_PATH"
+    # Use ls to check if directory exists, create if it doesn't
+    if ! ls "$LOCAL_PATH" > /dev/null 2>&1; then
+        echo "Local directory does not exist, creating it..."
+        mkdir -p "$LOCAL_PATH" 2>&1 || {
+            echo "Error: mkdir failed"
+            exit 1
+        }
+    else
+        echo "Local directory exists"
+    fi
+else
+    printf "Error: please specify the local directory!"
+    exit 1
+fi
+
+echo "Creating --check-access file at remote will propagate to local(path1) on resync"
+rclone touch "${remotePath}/RCLONE_TEST" || {
+  printf "check files creation failed"
+  exit 1
+}
+
+echo "Starting bidirectional sync with rclone bisync..."
+
 # Check if bisync state exists
 BISYNC_STATE_DIR="$HOME/.cache/rclone/bisync"
 mkdir -p "$BISYNC_STATE_DIR"
 STATE_FILE="$BISYNC_STATE_DIR/$(echo "${remotePath}..${localPath}" | sed 's/[^a-zA-Z0-9]/_/g').lst"
 
-if [ ! -f "$STATE_FILE" ]; then
-    echo "First sync - initializing bisync with --resync..."
-    rclone bisync "${remotePath}" "${localPath}" --resync ${flags} --create-empty-src-dirs
-else
-    echo "Running incremental bisync..."
-    rclone bisync "${remotePath}" "${localPath}" ${flags} --create-empty-src-dirs
-fi
+echo "First sync - initializing bisync with --resync and --dry-run..."
+rclone bisync "${remotePath}" "${localPath}" ${flags} --resync --dry-run || {
+  printf "failed dry run resync"
+  exit 1
+}
 
-echo "Bidirectional sync completed successfully"
+echo "First sync - initializing bisync with --resync"
+rclone bisync "${remotePath}" "${localPath}" ${flags} --resync || {
+  printf "failed resync execution"
+  exit 1
+}
+
+echo "Bidirectional resync completed successfully"
+exit 0
 `;
   }
 }
@@ -356,7 +451,7 @@ INTERVAL="${String(intervalSeconds)}"
 echo "Starting sync daemon..."
 echo "Remote: $REMOTE_PATH"
 echo "Local: $LOCAL_PATH"
-echo "Interval: \${INTERVAL}s"
+echo "Interval: $INTERVAL"s
 echo "Bidirectional: ${String(bidirectional)}"
 
 # Create local directory
@@ -369,7 +464,7 @@ while true; do
     echo "[$(date)] Starting sync cycle..."
     ${syncCommands}
     
-    echo "[$(date)] Sync cycle completed. Sleeping for \${INTERVAL}s..."
+    echo "[$(date)] Sync cycle completed. Sleeping for $INTERVAL"s..."
     sleep "$INTERVAL"
 done
 `;
@@ -388,7 +483,7 @@ export interface CronJobOptions extends SyncOptions {
 
 /**
  * Builder for cron job setup script.
- * 
+ *
  * Generates a bash script that sets up a cron job for automatic syncing.
  */
 export class CronJobScriptBuilder {
@@ -529,21 +624,23 @@ export class ValidationScriptBuilder {
    */
   build(): string {
     return `#!/bin/bash
+set -euo pipefail
 
-ERRORS=0
+fatalError() {
+    printf "validation failed: %s\\n" "$*"
+    exit 1
+}
 
 # Check if rclone is installed
 if ! command -v rclone &> /dev/null; then
-    echo "ERROR: rclone is not installed"
-    ERRORS=$((ERRORS + 1))
+    fatalError "rclone is not installed"
 else
     echo "OK: rclone is installed ($(rclone version | head -n1))"
 fi
 
 # Check if config file exists
 if [ ! -f ~/.config/rclone/rclone.conf ]; then
-    echo "ERROR: rclone config file not found"
-    ERRORS=$((ERRORS + 1))
+    fatalError "rclone config file not found"
 else
     echo "OK: rclone config file exists"
     
@@ -553,8 +650,7 @@ else
         echo "Available remotes:"
         rclone listremotes
     else
-        echo "ERROR: No rclone remotes configured"
-        ERRORS=$((ERRORS + 1))
+        fatalError "No rclone remotes configured"
     fi
 fi
 
@@ -566,16 +662,6 @@ if [ -f ~/.config/rclone/rclone.conf ]; then
     else
         echo "OK: rclone config permissions are correct"
     fi
-fi
-
-if [ $ERRORS -gt 0 ]; then
-    echo ""
-    echo "Validation failed with $ERRORS error(s)"
-    exit 1
-else
-    echo ""
-    echo "Validation passed"
-    exit 0
 fi
 `;
   }

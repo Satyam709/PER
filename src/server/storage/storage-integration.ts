@@ -385,7 +385,7 @@ export class StorageIntegration {
   }
 
   /**
-   * Perform initial sync from remote to local.
+   * Perform initial sync.
    */
   private async performInitialSync(
     executor: CommandExecutor,
@@ -399,7 +399,7 @@ export class StorageIntegration {
       localPath,
       verbose: true,
     });
-    const syncScript = builder.build('remote-to-local');
+    const syncScript = builder.buildInitialResync();
 
     await executor.execute(syncScript);
     this.logger.info('Initial sync completed');
