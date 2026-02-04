@@ -364,8 +364,8 @@ export class StorageIntegration {
     const builder = new InstallRcloneScriptBuilder();
     const installScript = builder.build();
 
-    await executor.execute(installScript);
-    this.logger.info('Rclone installation completed');
+    const result = await executor.execute(installScript);
+    this.logger.info('Rclone installation completed', { result });
   }
 
   /**

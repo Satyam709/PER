@@ -13,7 +13,7 @@ import z from 'zod';
 import { Logger, logWithComponent } from '../../common/logging';
 import { GeneralJupyterClient, JupyterClient } from '../../jupyter/client';
 import { CommandExecutor, CommandResult } from '../../jupyter/servers';
-import { convertProtocol } from '../../utils/extras';
+import { convertProtocol, prettifyOutput } from '../../utils/extras';
 
 /**
  * Executes commands on Jupyter server via Terminal API.
@@ -27,6 +27,10 @@ const ColabTerminalEvent = z.object({
 });
 export type ColabTerminalEventType = z.infer<typeof ColabTerminalEvent>;
 
+/**
+ * CMD_TIMEOUT : timeout for the executing cmd
+ */
+const CMD_TIMEOUT = 10 * 60 * 1000; // 5 minutes
 export class ColabTerminalExecutor implements CommandExecutor {
   // clients for communication with the server
   private terminalWs: WebSocket | null;
@@ -75,6 +79,7 @@ export class ColabTerminalExecutor implements CommandExecutor {
   async execute(cmd: string, ...args: string[]): Promise<CommandResult> {
     // Wait for WebSocket to be ready
     await this.waitForConnection();
+    const cmdOutput = '';
 
     return new Promise<CommandResult>((resolve, reject) => {
       if (!this.terminalWs) {
@@ -92,17 +97,64 @@ export class ColabTerminalExecutor implements CommandExecutor {
         return;
       }
 
-      this.terminalWs.send(this.buildCommand(cmd, args));
-
-      // Can do better to parse the stream
-      // for now lets just wait for some time and return success
+      // auto fail on timeout
       setTimeout(() => {
-        resolve({
-          success: true,
-          output: '',
-        });
-      }, 2000);
+        this.disconnect();
+        reject(new Error('TIMEOUT: Cmd too long to complete!'));
+      }, CMD_TIMEOUT);
+
+      const outputResponseHandler = (event: MessageEvent) => {
+        if (typeof event.data !== 'string') {
+          this.logger.warn(
+            'Received non-string terminal event data:',
+            event.data,
+          );
+          return;
+        }
+        const validated = ColabTerminalEvent.safeParse(JSON.parse(event.data));
+        if (!validated.success) {
+          this.logger.warn('Received invalid terminal event:', event.data);
+          return;
+        }
+
+        const chunk = prettifyOutput(validated.data.data);
+        cmdOutput.concat(chunk);
+
+        // check marker
+        const result = this.isCmdDone(chunk);
+        if (result.complete) {
+          resolve({
+            output: cmdOutput,
+            success: result.exitCode == 0,
+            exitCode: result.exitCode,
+          });
+        }
+      };
+      this.terminalWs.onmessage = outputResponseHandler;
+      this.terminalWs.send(this.buildCommand(cmd, args));
     });
+  }
+
+  /**
+   * Checks if command execution is complete
+   *  by looking for the completion marker.
+   * @param output - The output string to check
+   * @returns Object with completion status
+   *  and exit code, or null if not complete
+   */
+  private isCmdDone(output: string): { complete: boolean; exitCode?: number } {
+    const MARKER = '__CMD_COMPLETE__';
+    const markerPattern = new RegExp(`${MARKER}:exit=(\\d+)`);
+    const match = markerPattern.exec(output);
+    this.logger.debug('isCmdDone', { matchedREGEX: match });
+    if (match) {
+      const exitCode = parseInt(match[1], 10);
+      return { complete: true, exitCode };
+    }
+
+    return {
+      complete: false,
+    };
   }
 
   /**
@@ -110,36 +162,44 @@ export class ColabTerminalExecutor implements CommandExecutor {
    * @param timeout - Maximum time to wait in milliseconds
    */
   private async waitForConnection(timeout = 15000): Promise<void> {
-    const startTime = Date.now();
+    const start = Date.now();
 
     while (!this.isConnected) {
-      if (Date.now() - startTime > timeout) {
+      if (Date.now() - start > timeout) {
         throw new Error('Terminal WebSocket connection timeout');
       }
 
       if (this.terminalWs?.readyState === 3) {
-        // Connection closed, try to reconnect
-        this.logger.warn('WebSocket closed, attempting to reconnect...');
-        void this.connect();
-        // Continue waiting for the new connection
+        this.logger.warn('WebSocket closed, attempting reconnect');
+
+        try {
+          await this.connect();
+          this.logger.debug('reconnect success');
+        } catch {
+          this.logger.debug('reconnect failed');
+        }
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // a 200ms delay before evaluating again
+      await new Promise((r) => setTimeout(r, 200));
     }
-
-    this.logger.debug('WebSocket connection ready');
   }
 
   /**
    * Builds a JSON command string for the Colab terminal WebSocket.
+   * Adds a trap on exit to give a marker for the
+   * downstream to look for command completion.
    * @param cmd - The base command
    * @param args - Command arguments
    * @returns JSON-stringified command object
    */
-  buildCommand(cmd: string, args: string[]): string {
-    const data = [cmd, ...args, '\r'].join(' ');
-    const colabCmd = { data };
-    return JSON.stringify(colabCmd);
+  private buildCommand(cmd: string, args: string[]): string {
+    const command = [cmd, ...args].join(' ');
+    const MARKER = '__CMD_COMPLETE__';
+
+    const wrappedCmd = `(${command}); rc=$?; echo "${MARKER}:exit=$rc"\r`;
+
+    return JSON.stringify({ data: wrappedCmd });
   }
 
   /**
@@ -190,9 +250,10 @@ export class ColabTerminalExecutor implements CommandExecutor {
       `Setting up terminal websocket with url: ${wsBaseUrl}${this.TERM_ENDPOINT}`,
     );
     const terminalSocket = new concWs(`${wsBaseUrl}${this.TERM_ENDPOINT}`);
+    this.terminalWs = terminalSocket;
 
     // Wait for connection to open
-    await new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       terminalSocket.onopen = () => {
         this.logger.info('Terminal WebSocket connection opened');
         resolve();
@@ -203,7 +264,13 @@ export class ColabTerminalExecutor implements CommandExecutor {
         reject(new Error(`WebSocket connection failed: ${event.message}`));
       };
     });
+  }
 
+  assignDefaultHandlers() {
+    const terminalSocket = this.terminalWs;
+    if (!terminalSocket) {
+      throw new Error('WS uninitialized');
+    }
     /**
      * Handle the response which is of form
      * "\{"data":"..."}"
@@ -218,7 +285,10 @@ export class ColabTerminalExecutor implements CommandExecutor {
       }
       const validated = ColabTerminalEvent.safeParse(JSON.parse(event.data));
       if (validated.success) {
-        this.logger.info('Received valid terminal event:', validated.data);
+        this.logger.debug(
+          'Received valid terminal event:',
+          prettifyOutput(validated.data.data),
+        );
       } else {
         this.logger.warn('Received invalid terminal event:', event.data);
       }
@@ -231,8 +301,6 @@ export class ColabTerminalExecutor implements CommandExecutor {
 
     terminalSocket.onclose = closeHandler;
     terminalSocket.onmessage = responseHandler;
-
-    this.terminalWs = terminalSocket;
   }
 
   /**
