@@ -201,7 +201,28 @@ export class StorageIntegration {
       });
       const syncScript = builder.buildBidirectional();
 
-      await executor.execute(syncScript);
+      this.logger.debug('Executing bidirectional sync script', {
+        remotePath: config.remoteRootPath,
+        localPath,
+      });
+      const result = await executor.execute(syncScript);
+      
+      if (!result.success) {
+        const errorMsg = result.error ?? 'Sync failed';
+        this.logger.error('Bidirectional sync failed', {
+          exitCode: result.exitCode,
+          error: result.error,
+          output: result.output,
+        });
+        throw new Error(`Sync failed: ${errorMsg}`);
+      }
+
+      this.logger.info('Bidirectional sync completed successfully', {
+        exitCode: result.exitCode,
+      });
+      this.logger.debug('Sync output', {
+        output: result.output,
+      });
 
       this.updateStatus(serverId, StorageStatus.READY);
 
@@ -253,17 +274,34 @@ export class StorageIntegration {
       }
 
       // Check if config file exists on server
+      this.logger.debug('Checking rclone config file on server');
       const result = await executor.execute(
         'test -f ~/.config/rclone/rclone.conf && echo "exists" || echo "missing"',
       );
 
+      if (!result.success) {
+        this.logger.error('Failed to check rclone config', {
+          exitCode: result.exitCode,
+          error: result.error,
+          output: result.output,
+        });
+        return {
+          success: false,
+          status: StorageStatus.ERROR,
+          error: result.error ?? 'Failed to check rclone config',
+        };
+      }
+
       if (result.output.trim() === 'missing') {
+        this.logger.warn('Rclone config file missing on server');
         return {
           success: false,
           status: StorageStatus.ERROR,
           message: 'Rclone config missing on server',
         };
       }
+
+      this.logger.debug('Rclone config file exists on server');
 
       return {
         success: true,
@@ -306,9 +344,26 @@ export class StorageIntegration {
       });
 
       const cronScript = builder.build();
-      await executor.execute(cronScript);
+      
+      this.logger.debug('Executing cron job setup script');
+      const result = await executor.execute(cronScript);
+      
+      if (!result.success) {
+        const errorMsg = result.error ?? 'Cron job setup failed';
+        this.logger.error('Cron job setup failed', {
+          exitCode: result.exitCode,
+          error: result.error,
+          output: result.output,
+        });
+        throw new Error(`Cron job setup failed: ${errorMsg}`);
+      }
 
-      this.logger.info('Cron job setup completed successfully');
+      this.logger.info('Cron job setup completed successfully', {
+        exitCode: result.exitCode,
+      });
+      this.logger.debug('Cron job setup output', {
+        output: result.output,
+      });
 
       return {
         success: true,
@@ -348,9 +403,25 @@ export class StorageIntegration {
    */
   private async checkIfSetup(executor: CommandExecutor): Promise<boolean> {
     try {
+      this.logger.debug('Checking if rclone is installed on server');
       const result = await executor.execute('command -v rclone');
-      return result.exitCode === 0;
-    } catch {
+      
+      const isInstalled = result.success && result.exitCode === 0;
+      
+      if (isInstalled) {
+        this.logger.debug('Rclone is installed on server', {
+          output: result.output,
+        });
+      } else {
+        this.logger.debug('Rclone is not installed on server', {
+          exitCode: result.exitCode,
+          error: result.error,
+        });
+      }
+      
+      return isInstalled;
+    } catch (error) {
+      this.logger.error('Error checking rclone installation', error);
       return false;
     }
   }
@@ -364,8 +435,25 @@ export class StorageIntegration {
     const builder = new InstallRcloneScriptBuilder();
     const installScript = builder.build();
 
+    this.logger.debug('Executing rclone install script');
     const result = await executor.execute(installScript);
-    this.logger.info('Rclone installation completed', { result });
+    
+    if (!result.success) {
+      const errorMsg = result.error ?? 'Installation failed';
+      this.logger.error('Rclone installation failed', {
+        exitCode: result.exitCode,
+        error: result.error,
+        output: result.output,
+      });
+      throw new Error(`Rclone installation failed: ${errorMsg}`);
+    }
+
+    this.logger.info('Rclone installation completed successfully', {
+      exitCode: result.exitCode,
+    });
+    this.logger.debug('Rclone installation output', {
+      output: result.output,
+    });
   }
 
   /**
@@ -380,8 +468,25 @@ export class StorageIntegration {
     const builder = new UploadConfigScriptBuilder({ configContent });
     const uploadScript = builder.build();
 
-    await executor.execute(uploadScript);
-    this.logger.info('Rclone configuration uploaded');
+    this.logger.debug('Executing rclone config upload script');
+    const result = await executor.execute(uploadScript);
+    
+    if (!result.success) {
+      const errorMsg = result.error ?? 'Config upload failed';
+      this.logger.error('Rclone config upload failed', {
+        exitCode: result.exitCode,
+        error: result.error,
+        output: result.output,
+      });
+      throw new Error(`Rclone config upload failed: ${errorMsg}`);
+    }
+
+    this.logger.info('Rclone configuration uploaded successfully', {
+      exitCode: result.exitCode,
+    });
+    this.logger.debug('Rclone config upload output', {
+      output: result.output,
+    });
   }
 
   /**
@@ -391,7 +496,10 @@ export class StorageIntegration {
     executor: CommandExecutor,
     remotePath: string,
   ): Promise<void> {
-    this.logger.info('Performing initial sync...');
+    this.logger.info('Performing initial sync...', {
+      remotePath,
+      localPath: this.getLocalPath(executor.serverId),
+    });
 
     const localPath = this.getLocalPath(executor.serverId);
     const builder = new SyncScriptBuilder({
@@ -401,8 +509,25 @@ export class StorageIntegration {
     });
     const syncScript = builder.buildInitialResync();
 
-    await executor.execute(syncScript);
-    this.logger.info('Initial sync completed');
+    this.logger.debug('Executing initial sync script');
+    const result = await executor.execute(syncScript);
+    
+    if (!result.success) {
+      const errorMsg = result.error ?? 'Initial sync failed';
+      this.logger.error('Initial sync failed', {
+        exitCode: result.exitCode,
+        error: result.error,
+        output: result.output,
+      });
+      throw new Error(`Initial sync failed: ${errorMsg}`);
+    }
+
+    this.logger.info('Initial sync completed successfully', {
+      exitCode: result.exitCode,
+    });
+    this.logger.debug('Initial sync output', {
+      output: result.output,
+    });
   }
 
   /**
