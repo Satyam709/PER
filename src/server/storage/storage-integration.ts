@@ -415,7 +415,11 @@ export class StorageIntegration {
     executor: CommandExecutor,
     configContent: string,
   ): Promise<void> {
+    const serverId = executor.serverId;
     this.logger.info('Uploading rclone configuration...');
+
+    // Update status to show we're in the config upload phase
+    this.updateStatus(serverId, StorageStatus.INSTALLING);
 
     const result = await uploadRcloneConfig(executor, configContent);
 

@@ -242,6 +242,7 @@ export async function activate(context: vscode.ExtensionContext) {
       assignmentManager,
       storageIntegration,
       storageConfigManager,
+      notebookTracker,
     ),
   );
 
@@ -384,6 +385,7 @@ function setupStorageIntegration(
   assignmentManager: AssignmentManager,
   storageIntegration: StorageIntegration,
   storageConfigManager: StorageConfigManager,
+  notebookTracker: NotebookServerTracker,
 ): Disposable[] {
   const disposables: Disposable[] = [];
 
@@ -421,23 +423,13 @@ function setupStorageIntegration(
             log.warn(`No terminal provider for server: ${server.id}`);
             continue;
           }
-          const executor = server.terminal.getTerminal();
-          const result = await storageIntegration.setupOnServer(executor);
 
-          if (result.success) {
-            log.info(`Storage setup successful on server: ${server.id}`);
-            await vs.window.showInformationMessage(
-              `Storage setup complete on server ${server.id}`,
-            );
-          } else {
-            const errorMsg = result.error ?? result.message ?? 'Unknown error';
-            log.warn(
-              `Storage setup failed on server ${server.id}: ${errorMsg}`,
-            );
-            await vs.window.showWarningMessage(
-              `Storage setup failed: ${errorMsg}`,
-            );
-          }
+          // Trigger the setup cmd
+          await setupStorageOnServer(
+            vscode,
+            notebookTracker,
+            storageIntegration,
+          );
         } catch (error) {
           log.error(`Failed to setup storage on server ${server.id}:`, error);
         }

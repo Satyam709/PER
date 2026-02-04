@@ -68,33 +68,66 @@ export async function setupStorageOnServer(
     return;
   }
 
-  await vs.window.withProgress(
-    {
-      location: vs.ProgressLocation.Notification,
-      title: 'Setting up storage on server',
-      cancellable: false,
-    },
-    async (progress) => {
-      progress.report({ message: 'Getting terminal connection...' });
-      if (!server.terminal) {
-        throw new Error('No terminal provider available for this server');
-      }
-      const executor = server.terminal.getTerminal();
+  try {
+    await vs.window.withProgress(
+      {
+        location: vs.ProgressLocation.Notification,
+        title: 'Setting up storage',
+        cancellable: false,
+      },
+      async (progress) => {
+        progress.report({ message: 'Getting terminal connection...' });
+        if (!server.terminal) {
+          throw new Error('No terminal provider available for this server');
+        }
+        const executor = server.terminal.getTerminal();
 
-      progress.report({ message: 'Installing rclone...' });
-      const result = await storageIntegration.setupOnServer(executor);
+        // Listen to status changes to update progress
+        const disposable = storageIntegration.onDidChangeStatus((event) => {
+          if (event.serverId === server.id) {
+            switch (event.status) {
+              case StorageStatus.CHECKING:
+                progress.report({ message: 'Checking rclone installation...' });
+                break;
+              case StorageStatus.INSTALLING:
+                progress.report({ message: 'Installing rclone...' });
+                break;
+              case StorageStatus.SYNCING:
+                progress.report({ message: 'Performing initial sync...' });
+                break;
+              case StorageStatus.READY:
+                progress.report({ message: 'Setup complete!' });
+                break;
+              case StorageStatus.ERROR:
+                progress.report({ message: 'Setup failed' });
+                break;
+            }
+          }
+        });
 
-      if (result.success) {
-        await vs.window.showInformationMessage(
-          result.message ?? 'Storage setup complete',
-        );
-      } else {
-        await vs.window.showErrorMessage(
-          `Storage setup failed: ${result.error ?? result.message ?? 'Unknown error'}`,
-        );
-      }
-    },
-  );
+        try {
+          const result = await storageIntegration.setupOnServer(executor);
+
+          if (result.success) {
+            progress.report({ message: 'Complete!', increment: 100 });
+            await vs.window.showInformationMessage(
+              result.message ?? 'Storage setup complete',
+            );
+          } else {
+            throw new Error(
+              result.error ?? result.message ?? 'Unknown error',
+            );
+          }
+        } finally {
+          disposable.dispose();
+        }
+      },
+    );
+  } catch (error) {
+    await vs.window.showErrorMessage(
+      `Storage setup failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    );
+  }
 }
 
 /**
@@ -126,30 +159,59 @@ export async function syncStorage(
     return;
   }
 
-  await vs.window.withProgress(
-    {
-      location: vs.ProgressLocation.Notification,
-      title: 'Syncing storage',
-      cancellable: false,
-    },
-    async () => {
-      if (!server.terminal) {
-        throw new Error('No terminal provider available for this server');
-      }
-      const executor = server.terminal.getTerminal();
-      const result = await storageIntegration.syncNow(executor);
+  try {
+    await vs.window.withProgress(
+      {
+        location: vs.ProgressLocation.Notification,
+        title: 'Syncing storage',
+        cancellable: false,
+      },
+      async (progress) => {
+        if (!server.terminal) {
+          throw new Error('No terminal provider available for this server');
+        }
+        const executor = server.terminal.getTerminal();
 
-      if (result.success) {
-        await vs.window.showInformationMessage(
-          result.message ?? 'Sync complete',
-        );
-      } else {
-        await vs.window.showErrorMessage(
-          `Sync failed: ${result.error ?? result.message ?? 'Unknown error'}`,
-        );
-      }
-    },
-  );
+        // Listen to status changes to update progress
+        const disposable = storageIntegration.onDidChangeStatus((event) => {
+          if (event.serverId === server.id) {
+            switch (event.status) {
+              case StorageStatus.SYNCING:
+                progress.report({ message: 'Syncing files...' });
+                break;
+              case StorageStatus.READY:
+                progress.report({ message: 'Sync complete!' });
+                break;
+              case StorageStatus.ERROR:
+                progress.report({ message: 'Sync failed' });
+                break;
+            }
+          }
+        });
+
+        try {
+          const result = await storageIntegration.syncNow(executor);
+
+          if (result.success) {
+            progress.report({ message: 'Complete!', increment: 100 });
+            await vs.window.showInformationMessage(
+              result.message ?? 'Sync complete',
+            );
+          } else {
+            throw new Error(
+              result.error ?? result.message ?? 'Unknown error',
+            );
+          }
+        } finally {
+          disposable.dispose();
+        }
+      },
+    );
+  } catch (error) {
+    await vs.window.showErrorMessage(
+      `Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    );
+  }
 }
 
 /**
