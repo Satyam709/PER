@@ -79,7 +79,7 @@ export class ColabTerminalExecutor implements CommandExecutor {
   async execute(cmd: string, ...args: string[]): Promise<CommandResult> {
     // Wait for WebSocket to be ready
     await this.waitForConnection();
-    const cmdOutput = '';
+    let cmdOutput = '';
 
     return new Promise<CommandResult>((resolve, reject) => {
       if (!this.terminalWs) {
@@ -118,11 +118,16 @@ export class ColabTerminalExecutor implements CommandExecutor {
         }
 
         const chunk = prettifyOutput(validated.data.data);
-        cmdOutput.concat(chunk);
+        cmdOutput = cmdOutput.concat(chunk);
 
         // check marker
         const result = this.isCmdDone(chunk);
         if (result.complete) {
+          this.logger.debug('execution done', {
+            output: cmdOutput,
+            success: result.exitCode == 0,
+            exitCode: result.exitCode,
+          });
           resolve({
             output: cmdOutput,
             success: result.exitCode == 0,
@@ -132,6 +137,7 @@ export class ColabTerminalExecutor implements CommandExecutor {
       };
       this.terminalWs.onmessage = outputResponseHandler;
       this.terminalWs.send(this.buildCommand(cmd, args));
+      this.logger.debug('executing ' + this.buildCommand(cmd, args));
     });
   }
 
@@ -146,7 +152,6 @@ export class ColabTerminalExecutor implements CommandExecutor {
     const MARKER = '__CMD_COMPLETE__';
     const markerPattern = new RegExp(`${MARKER}:exit=(\\d+)`);
     const match = markerPattern.exec(output);
-    this.logger.debug('isCmdDone', { matchedREGEX: match });
     if (match) {
       const exitCode = parseInt(match[1], 10);
       return { complete: true, exitCode };

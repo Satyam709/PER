@@ -8,13 +8,16 @@ import vscode from 'vscode';
 import { Logger, logWithComponent } from '../../common/logging';
 import { CommandExecutor } from '../../jupyter/servers';
 import { StorageConfigManager } from './config';
-import { RcloneManager } from './rclone-manager';
 import {
-  InstallRcloneScriptBuilder,
-  UploadConfigScriptBuilder,
-  SyncScriptBuilder,
-  DEFAULT_LOCAL_PATH,
-} from './scripts';
+  installRclone,
+  isRcloneInstalled,
+  performBidirectionalSync,
+  performInitialResync,
+  uploadRcloneConfig,
+  validateRcloneSetup,
+} from './operations';
+import { RcloneManager } from './rclone-manager';
+import { DEFAULT_LOCAL_PATH } from './scripts';
 
 /**
  * Status of storage setup on a server.
@@ -133,17 +136,20 @@ export class StorageIntegration {
 
       // Install rclone
       this.updateStatus(serverId, StorageStatus.INSTALLING);
-      await this.installRclone(executor);
+      await this.installRcloneOnServer(executor);
 
       // Upload rclone config
       if (!config.rcloneConfigContent) {
         throw new Error('Rclone config content is missing');
       }
-      await this.uploadRcloneConfig(executor, config.rcloneConfigContent);
+      await this.uploadRcloneConfigToServer(
+        executor,
+        config.rcloneConfigContent,
+      );
 
       // Initial sync
       this.updateStatus(serverId, StorageStatus.SYNCING);
-      await this.performInitialSync(executor, config.remoteRootPath);
+      await this.performInitialSyncOperation(executor, config.remoteRootPath);
 
       this.updateStatus(serverId, StorageStatus.READY);
       this.logger.info('Storage setup completed successfully');
@@ -194,19 +200,16 @@ export class StorageIntegration {
 
       // Perform bidirectional sync
       const localPath = this.getLocalPath(serverId);
-      const builder = new SyncScriptBuilder({
+      this.logger.debug('Executing bidirectional sync', {
+        remotePath: config.remoteRootPath,
+        localPath,
+      });
+      const result = await performBidirectionalSync(executor, {
         remotePath: config.remoteRootPath,
         localPath,
         verbose: true,
       });
-      const syncScript = builder.buildBidirectional();
 
-      this.logger.debug('Executing bidirectional sync script', {
-        remotePath: config.remoteRootPath,
-        localPath,
-      });
-      const result = await executor.execute(syncScript);
-      
       if (!result.success) {
         const errorMsg = result.error ?? 'Sync failed';
         this.logger.error('Bidirectional sync failed', {
@@ -254,16 +257,7 @@ export class StorageIntegration {
    */
   async validateSetup(executor: CommandExecutor): Promise<StorageSetupResult> {
     try {
-      const isSetup = await this.checkIfSetup(executor);
       const config = await this.storageConfigManager.get();
-
-      if (!isSetup) {
-        return {
-          success: false,
-          status: StorageStatus.NOT_CONFIGURED,
-          message: 'Rclone not installed on server',
-        };
-      }
 
       if (!config?.enabled) {
         return {
@@ -273,40 +267,21 @@ export class StorageIntegration {
         };
       }
 
-      // Check if config file exists on server
-      this.logger.debug('Checking rclone config file on server');
-      const result = await executor.execute(
-        'test -f ~/.config/rclone/rclone.conf && echo "exists" || echo "missing"',
-      );
+      // Validate rclone setup using atomic operations
+      const validation = await validateRcloneSetup(executor);
 
-      if (!result.success) {
-        this.logger.error('Failed to check rclone config', {
-          exitCode: result.exitCode,
-          error: result.error,
-          output: result.output,
-        });
+      if (!validation.valid) {
         return {
           success: false,
           status: StorageStatus.ERROR,
-          error: result.error ?? 'Failed to check rclone config',
+          message: validation.message,
         };
       }
-
-      if (result.output.trim() === 'missing') {
-        this.logger.warn('Rclone config file missing on server');
-        return {
-          success: false,
-          status: StorageStatus.ERROR,
-          message: 'Rclone config missing on server',
-        };
-      }
-
-      this.logger.debug('Rclone config file exists on server');
 
       return {
         success: true,
         status: StorageStatus.READY,
-        message: 'Storage setup is valid',
+        message: validation.message,
       };
     } catch (error) {
       return {
@@ -402,42 +377,19 @@ export class StorageIntegration {
    * Check if rclone is installed and configured on the server.
    */
   private async checkIfSetup(executor: CommandExecutor): Promise<boolean> {
-    try {
-      this.logger.debug('Checking if rclone is installed on server');
-      const result = await executor.execute('command -v rclone');
-      
-      const isInstalled = result.success && result.exitCode === 0;
-      
-      if (isInstalled) {
-        this.logger.debug('Rclone is installed on server', {
-          output: result.output,
-        });
-      } else {
-        this.logger.debug('Rclone is not installed on server', {
-          exitCode: result.exitCode,
-          error: result.error,
-        });
-      }
-      
-      return isInstalled;
-    } catch (error) {
-      this.logger.error('Error checking rclone installation', error);
-      return false;
-    }
+    return await isRcloneInstalled(executor);
   }
 
   /**
    * Install rclone on the server.
    */
-  private async installRclone(executor: CommandExecutor): Promise<void> {
+  private async installRcloneOnServer(
+    executor: CommandExecutor,
+  ): Promise<void> {
     this.logger.info('Installing rclone on server...');
 
-    const builder = new InstallRcloneScriptBuilder();
-    const installScript = builder.build();
+    const result = await installRclone(executor);
 
-    this.logger.debug('Executing rclone install script');
-    const result = await executor.execute(installScript);
-    
     if (!result.success) {
       const errorMsg = result.error ?? 'Installation failed';
       this.logger.error('Rclone installation failed', {
@@ -459,18 +411,14 @@ export class StorageIntegration {
   /**
    * Upload rclone configuration to the server.
    */
-  private async uploadRcloneConfig(
+  private async uploadRcloneConfigToServer(
     executor: CommandExecutor,
     configContent: string,
   ): Promise<void> {
     this.logger.info('Uploading rclone configuration...');
 
-    const builder = new UploadConfigScriptBuilder({ configContent });
-    const uploadScript = builder.build();
+    const result = await uploadRcloneConfig(executor, configContent);
 
-    this.logger.debug('Executing rclone config upload script');
-    const result = await executor.execute(uploadScript);
-    
     if (!result.success) {
       const errorMsg = result.error ?? 'Config upload failed';
       this.logger.error('Rclone config upload failed', {
@@ -492,7 +440,7 @@ export class StorageIntegration {
   /**
    * Perform initial sync.
    */
-  private async performInitialSync(
+  private async performInitialSyncOperation(
     executor: CommandExecutor,
     remotePath: string,
   ): Promise<void> {
@@ -502,16 +450,12 @@ export class StorageIntegration {
     });
 
     const localPath = this.getLocalPath(executor.serverId);
-    const builder = new SyncScriptBuilder({
+    const result = await performInitialResync(executor, {
       remotePath,
       localPath,
       verbose: true,
     });
-    const syncScript = builder.buildInitialResync();
 
-    this.logger.debug('Executing initial sync script');
-    const result = await executor.execute(syncScript);
-    
     if (!result.success) {
       const errorMsg = result.error ?? 'Initial sync failed';
       this.logger.error('Initial sync failed', {

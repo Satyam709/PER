@@ -1,211 +1,314 @@
-# Storage Scripts
+# Storage Operations
 
-Centralized TypeScript-based script builders for storage operations with rclone.
+This module provides functionality for managing rclone storage operations on remote Jupyter servers.
 
-## Overview
+## Architecture Change
 
-This module provides type-safe builders for generating shell scripts used in storage operations on remote Jupyter servers. All scripts are generated dynamically using TypeScript builders rather than static shell files.
+**⚠️ IMPORTANT:** The script builders in `builders.ts` are **DEPRECATED** in favor of atomic operations in `operations.ts`.
 
-## Architecture
+### Why Atomic Operations?
 
-```
-src/server/storage/scripts/
-├── builders.ts     # Script builder classes
-├── constants.ts    # Configuration constants
-├── index.ts        # Module exports
-└── README.md       # This file
-```
+The `execute(cmd)` method in `TerminalExecutor` can only execute **single commands**, not multi-line bash scripts. The old script builders generated complex multi-line bash scripts that cannot be executed properly.
 
-## Script Builders
-
-### InstallRcloneScriptBuilder
-
-Generates scripts to install rclone on remote servers.
-
-**Usage:**
+**Old approach (DEPRECATED):**
 ```typescript
-import { InstallRcloneScriptBuilder } from './scripts';
-
-const builder = new InstallRcloneScriptBuilder({
-  forceReinstall: false,  // Skip if already installed
-});
-const script = builder.build();
+// ❌ This generates a multi-line bash script
+const builder = new InstallRcloneScriptBuilder();
+const script = builder.build(); // Returns multi-line bash script
+await executor.execute(script); // FAILS - can only run single command
 ```
 
-**Options:**
-- `forceReinstall`: Force reinstallation even if rclone exists
-- `installUrl`: Custom installation URL (defaults to official rclone URL)
-
-### UploadConfigScriptBuilder
-
-Generates scripts to upload rclone configuration to remote servers.
-
-**Usage:**
+**New approach (RECOMMENDED):**
 ```typescript
-import { UploadConfigScriptBuilder } from './scripts';
+// ✅ Each function executes a single atomic command
+import { installRclone, isRcloneInstalled } from './operations';
 
-const builder = new UploadConfigScriptBuilder({
-  configContent: base64EncodedConfig,
-  configPath: '~/.config/rclone/rclone.conf',  // Optional
-});
-const script = builder.build();
+const installed = await isRcloneInstalled(executor);
+if (!installed) {
+  await installRclone(executor);
+}
 ```
 
-**Options:**
-- `configContent`: Base64-encoded rclone configuration (required)
-- `configPath`: Custom config path (defaults to standard location)
+## Atomic Operations
 
-### SyncScriptBuilder
+All operations are located in `../operations.ts` and execute single commands via the executor.
 
-Generates scripts for one-way or bidirectional sync operations.
+### Installation Operations
 
-**Usage:**
+#### `isRcloneInstalled(executor)`
+Check if rclone is installed on the server.
+
 ```typescript
-import { SyncScriptBuilder } from './scripts';
+const installed = await isRcloneInstalled(executor);
+// Returns: boolean
+```
 
-const builder = new SyncScriptBuilder({
+#### `getRcloneVersion(executor)`
+Get the installed rclone version.
+
+```typescript
+const version = await getRcloneVersion(executor);
+// Returns: string | null (e.g., "rclone v1.62.0")
+```
+
+#### `installRclone(executor, forceReinstall?)`
+Install rclone on the server. Skips if already installed unless `forceReinstall` is true.
+
+```typescript
+const result = await installRclone(executor, false);
+// Returns: CommandResult { success, exitCode, output, error? }
+```
+
+### Configuration Operations
+
+#### `hasRcloneConfig(executor, configPath?)`
+Check if rclone config file exists.
+
+```typescript
+const hasConfig = await hasRcloneConfig(executor);
+// Returns: boolean
+```
+
+#### `createRcloneConfigDir(executor, configPath?)`
+Create the rclone config directory.
+
+```typescript
+const result = await createRcloneConfigDir(executor);
+// Returns: CommandResult
+```
+
+#### `uploadRcloneConfig(executor, configContent, configPath?)`
+Upload rclone configuration to the server.
+
+```typescript
+const base64Config = Buffer.from(configContent).toString('base64');
+const result = await uploadRcloneConfig(executor, base64Config);
+// Returns: CommandResult
+```
+
+#### `listRcloneRemotes(executor)`
+List all configured remotes.
+
+```typescript
+const remotes = await listRcloneRemotes(executor);
+// Returns: string[] (e.g., ["drive:", "s3:"])
+```
+
+#### `isRemoteAccessible(executor, remoteName)`
+Check if a remote is accessible.
+
+```typescript
+const accessible = await isRemoteAccessible(executor, "drive");
+// Returns: boolean
+```
+
+### Sync Operations
+
+#### `performInitialResync(executor, options)`
+Perform initial resync to set up bisync state.
+
+```typescript
+const result = await performInitialResync(executor, {
   remotePath: 'drive:/projects/myproject',
-  localPath: '/content/project',
-  excludePatterns: ['.git/**', '*.tmp'],
+  localPath: '/content/workspace',
+  verbose: true,
+  excludePatterns: ['*.pyc', '__pycache__'],
+  additionalFlags: ['--check-access'],
+});
+// Returns: CommandResult
+```
+
+This operation:
+1. Verifies remote is accessible
+2. Creates remote and local directories if needed
+3. Creates check file for bisync
+4. Runs dry-run resync
+5. Performs actual resync
+
+#### `performBidirectionalSync(executor, options)`
+Perform incremental bidirectional sync.
+
+```typescript
+const result = await performBidirectionalSync(executor, {
+  remotePath: 'drive:/projects/myproject',
+  localPath: '/content/workspace',
   verbose: true,
 });
-
-// One-way sync
-const remoteToLocal = builder.build('remote-to-local');
-const localToRemote = builder.build('local-to-remote');
-
-// Bidirectional sync
-const bidirectional = builder.buildBidirectional();
+// Returns: CommandResult
 ```
 
-**Options:**
-- `remotePath`: Remote path in format "remote:/path" (required)
-- `localPath`: Local path on server (required)
-- `excludePatterns`: Patterns to exclude from sync
-- `verbose`: Enable verbose output
-- `additionalFlags`: Custom rclone flags
+Automatically falls back to `performInitialResync` if bisync state doesn't exist.
 
-### SyncDaemonScriptBuilder
+#### `syncRemoteToLocal(executor, options)`
+One-way sync from remote to local.
 
-Generates scripts for continuous background syncing.
-
-**Usage:**
 ```typescript
-import { SyncDaemonScriptBuilder } from './scripts';
-
-const builder = new SyncDaemonScriptBuilder({
+const result = await syncRemoteToLocal(executor, {
   remotePath: 'drive:/projects/myproject',
-  localPath: '/content/project',
-  intervalSeconds: 300,  // 5 minutes
-  bidirectional: true,
-  verbose: true,
+  localPath: '/content/workspace',
 });
-const script = builder.build();
+// Returns: CommandResult
 ```
 
-**Options:**
-- All options from `SyncScriptBuilder`
-- `intervalSeconds`: Sync interval in seconds (default: 300)
-- `bidirectional`: Whether to run bidirectional sync (default: true)
+#### `syncLocalToRemote(executor, options)`
+One-way sync from local to remote.
 
-### ValidationScriptBuilder
-
-Generates scripts to validate rclone installation and configuration.
-
-**Usage:**
 ```typescript
-import { ValidationScriptBuilder } from './scripts';
-
-const builder = new ValidationScriptBuilder();
-const script = builder.build();
+const result = await syncLocalToRemote(executor, {
+  remotePath: 'drive:/projects/myproject',
+  localPath: '/content/workspace',
+});
+// Returns: CommandResult
 ```
 
-## Constants
+### Validation Operations
 
-### Paths and Configuration
+#### `validateRcloneSetup(executor)`
+Validate complete rclone setup.
 
-- `DEFAULT_LOCAL_PATH`: Default local path on Colab servers (`/content/project`)
-- `DEFAULT_RCLONE_CONFIG_PATH`: Standard rclone config location
-- `RCLONE_INSTALL_URL`: Official rclone installation script URL
+```typescript
+const validation = await validateRcloneSetup(executor);
+// Returns: { valid: boolean, message: string }
+// Example: { valid: true, message: "rclone setup valid (v1.62.0, 2 remote(s))" }
+```
 
-### Sync Configuration
+This checks:
+- Rclone is installed
+- Config file exists
+- At least one remote is configured
 
-- `DEFAULT_EXCLUDE_PATTERNS`: Default patterns to exclude from sync
-  - `.git/**` - Git repository files
-  - `*.tmp` - Temporary files
-  - `*.swp` - Vim swap files
+### Directory Operations
 
-### Timing
+#### `createRemoteDir(executor, remotePath)`
+Create a directory on the remote.
 
-- `DEFAULT_SYNC_INTERVAL_SECONDS`: Default sync interval (300s / 5 minutes)
-- `MIN_SYNC_INTERVAL_SECONDS`: Minimum recommended interval (60s)
-- `MAX_SYNC_INTERVAL_SECONDS`: Maximum recommended interval (3600s / 1 hour)
+```typescript
+const result = await createRemoteDir(executor, 'drive:/projects/newproject');
+// Returns: CommandResult
+```
 
-### Security
+#### `remotePathExists(executor, remotePath)`
+Check if a remote path exists.
 
-- `RCLONE_CONFIG_PERMISSIONS`: Required permissions for config file (`600`)
+```typescript
+const exists = await remotePathExists(executor, 'drive:/projects/myproject');
+// Returns: boolean
+```
 
-## Migration from Shell Scripts
+#### `createLocalDir(executor, localPath)`
+Create a local directory.
 
-This module replaces the previous shell scripts in `scripts/server-setup/`:
-- `install-rclone.sh` → `InstallRcloneScriptBuilder`
-- `setup-sync.sh` → `SyncScriptBuilder`
-- `sync-daemon.sh` → `SyncDaemonScriptBuilder`
+```typescript
+const result = await createLocalDir(executor, '/content/workspace');
+// Returns: CommandResult
+```
 
-## Benefits
+### Sync Options
 
-1. **Type Safety**: TypeScript provides compile-time checks for script parameters
-2. **Maintainability**: Centralized logic easier to update and test
-3. **Flexibility**: Dynamic script generation allows runtime customization
-4. **Consistency**: Shared constants ensure uniform behavior across scripts
-5. **Documentation**: JSDoc comments provide inline documentation
+```typescript
+interface SyncOptions {
+  remotePath: string;           // e.g., "drive:/projects/proj1"
+  localPath: string;            // e.g., "/content/workspace"
+  excludePatterns?: string[];   // Default: ['*.pyc', '__pycache__', '.git']
+  verbose?: boolean;            // Default: false
+  additionalFlags?: string[];   // Additional rclone flags
+}
+```
 
-## Example: Complete Setup Flow
+## Complete Setup Example
 
 ```typescript
 import {
-  InstallRcloneScriptBuilder,
-  UploadConfigScriptBuilder,
-  SyncScriptBuilder,
-  DEFAULT_LOCAL_PATH,
-} from './scripts';
+  installRclone,
+  uploadRcloneConfig,
+  performInitialResync,
+  performBidirectionalSync,
+  validateRcloneSetup,
+} from '../operations';
 
-// 1. Install rclone
-const installBuilder = new InstallRcloneScriptBuilder();
-await executor.execute(installBuilder.build());
+async function setupStorage(executor: CommandExecutor) {
+  // 1. Install rclone
+  const installResult = await installRclone(executor);
+  if (!installResult.success) {
+    throw new Error('Failed to install rclone');
+  }
 
-// 2. Upload configuration
-const configBuilder = new UploadConfigScriptBuilder({
-  configContent: base64Config,
-});
-await executor.execute(configBuilder.build());
+  // 2. Upload configuration
+  const base64Config = Buffer.from(configContent).toString('base64');
+  const configResult = await uploadRcloneConfig(executor, base64Config);
+  if (!configResult.success) {
+    throw new Error('Failed to upload config');
+  }
 
-// 3. Initial sync
-const syncBuilder = new SyncScriptBuilder({
-  remotePath: 'drive:/projects/myproject',
-  localPath: DEFAULT_LOCAL_PATH,
-  verbose: true,
-});
-await executor.execute(syncBuilder.build('remote-to-local'));
+  // 3. Validate setup
+  const validation = await validateRcloneSetup(executor);
+  if (!validation.valid) {
+    throw new Error(`Validation failed: ${validation.message}`);
+  }
+
+  // 4. Initial sync
+  const syncResult = await performInitialResync(executor, {
+    remotePath: 'drive:/projects/myproject',
+    localPath: '/content/workspace',
+    verbose: true,
+  });
+  if (!syncResult.success) {
+    throw new Error('Initial sync failed');
+  }
+
+  // 5. Subsequent syncs
+  const incrementalResult = await performBidirectionalSync(executor, {
+    remotePath: 'drive:/projects/myproject',
+    localPath: '/content/workspace',
+  });
+}
 ```
 
-## Testing
+## Legacy Script Builders (DEPRECATED)
 
-When writing tests for code using these builders, you can verify the generated scripts:
+The following script builders are deprecated and should not be used:
+- `InstallRcloneScriptBuilder` → Use `installRclone()`
+- `UploadConfigScriptBuilder` → Use `uploadRcloneConfig()`
+- `SyncScriptBuilder` → Use sync operations
+- `SyncDaemonScriptBuilder` → Not compatible with single-command execution
+- `ValidationScriptBuilder` → Use `validateRcloneSetup()`
+
+The `CronJobScriptBuilder` is still supported for setting up cron jobs, as it requires a multi-line script approach.
+
+## Constants
+
+All constants are exported from `./constants.ts`:
 
 ```typescript
-const builder = new InstallRcloneScriptBuilder({ forceReinstall: true });
-const script = builder.build();
-
-expect(script).to.include('curl https://rclone.org/install.sh');
-expect(script).to.not.include('if command -v rclone');
+export const RCLONE_INSTALL_URL = 'https://rclone.org/install.sh';
+export const DEFAULT_EXCLUDE_PATTERNS = ['*.pyc', '__pycache__', '.git'];
+export const DEFAULT_LOCAL_PATH = '/content/workspace';
+export const DEFAULT_RCLONE_CONFIG_PATH = '~/.config/rclone/rclone.conf';
+export const DEFAULT_SYNC_INTERVAL_SECONDS = 300;
+export const RCLONE_CONFIG_PERMISSIONS = '600';
+export const MIN_SYNC_INTERVAL_SECONDS = 60;
+export const MAX_SYNC_INTERVAL_SECONDS = 3600;
+export const DEFAULT_SAFE_BISYNC_ARGS = [
+  '--check-access',
+  '--resilient',
+  '--recover',
+  '--conflict-resolve=newer',
+  '--conflict-loser=num',
+];
 ```
 
-## Future Enhancements
+## Error Handling
 
-Potential improvements for this module:
-- Add support for rclone mount operations
-- Include bandwidth limiting options
-- Add progress tracking hooks
-- Support for encrypted configurations
-- Advanced filtering and transformation options
+All operations return `CommandResult` or throw errors that should be caught:
+
+```typescript
+try {
+  const result = await installRclone(executor);
+  if (!result.success) {
+    console.error('Installation failed:', result.error);
+    console.error('Output:', result.output);
+    console.error('Exit code:', result.exitCode);
+  }
+} catch (error) {
+  console.error('Unexpected error:', error);
+}

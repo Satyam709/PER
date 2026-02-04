@@ -16,7 +16,7 @@ import {
   DEFAULT_EXCLUDE_PATTERNS,
   DEFAULT_SAFE_BISYNC_ARGS,
   RCLONE_INSTALL_URL,
-} from './constants';
+} from '../constants';
 
 /**
  * Options for building rclone installation script.
