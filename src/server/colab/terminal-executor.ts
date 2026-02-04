@@ -1,5 +1,5 @@
 /**
- * Copyright 2026 Satyam OP
+ * Copyright 2026 Satyam
  *
  * Licensed under the Apache License, Version 2.0
  */

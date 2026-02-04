@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 Google LLC
+ * Copyright 2026 Satyam
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -8,6 +8,7 @@ import vscode from 'vscode';
 import { Logger, logWithComponent } from '../../common/logging';
 import { CommandExecutor } from '../../jupyter/servers';
 import { StorageConfigManager } from './config';
+import { DEFAULT_LOCAL_PATH } from './constants';
 import {
   installRclone,
   isRcloneInstalled,
@@ -17,7 +18,6 @@ import {
   validateRcloneSetup,
 } from './operations';
 import { RcloneManager } from './rclone-manager';
-import { DEFAULT_LOCAL_PATH } from './scripts';
 
 /**
  * Status of storage setup on a server.
@@ -294,66 +294,11 @@ export class StorageIntegration {
 
   /**
    * Setup automatic sync cron job on a server.
+   * TODO : fix this
    */
-  async setupCronJob(executor: CommandExecutor): Promise<StorageSetupResult> {
-    const serverId = executor.serverId;
-    this.logger.info(`Setting up cron job for server: ${serverId}`);
+  // async setupCronJob(executor: CommandExecutor): Promise<StorageSetupResult> {
 
-    try {
-      const config = await this.storageConfigManager.get();
-      if (!config?.enabled) {
-        return {
-          success: false,
-          status: StorageStatus.NOT_CONFIGURED,
-          message: 'Storage not configured',
-        };
-      }
-
-      // Lazy import to avoid unused import error
-      const { CronJobScriptBuilder } = await import('./scripts/index.js');
-
-      const builder = new CronJobScriptBuilder({
-        remotePath: config.remoteRootPath,
-        localPath: this.getLocalPath(serverId),
-        verbose: false, // Less verbose for cron jobs
-      });
-
-      const cronScript = builder.build();
-      
-      this.logger.debug('Executing cron job setup script');
-      const result = await executor.execute(cronScript);
-      
-      if (!result.success) {
-        const errorMsg = result.error ?? 'Cron job setup failed';
-        this.logger.error('Cron job setup failed', {
-          exitCode: result.exitCode,
-          error: result.error,
-          output: result.output,
-        });
-        throw new Error(`Cron job setup failed: ${errorMsg}`);
-      }
-
-      this.logger.info('Cron job setup completed successfully', {
-        exitCode: result.exitCode,
-      });
-      this.logger.debug('Cron job setup output', {
-        output: result.output,
-      });
-
-      return {
-        success: true,
-        status: StorageStatus.READY,
-        message: 'Cron job configured for automatic sync every 10 minutes',
-      };
-    } catch (error) {
-      this.logger.error(`Cron job setup failed on server ${serverId}:`, error);
-      return {
-        success: false,
-        status: StorageStatus.ERROR,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
-  }
+  // }
 
   /**
    * Get workspace-specific local path for a server.
