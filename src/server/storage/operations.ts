@@ -176,14 +176,8 @@ export async function uploadRcloneConfig(
     logger.error('Failed to create rclone config directory');
     return dirResult;
   }
-
-  // Decode base64 config
-  const decodedConfig = Buffer.from(configContent, 'base64').toString('utf-8');
-
-  // Escape single quotes for safe embedding in heredoc
-  const escapedConfig = decodedConfig.replace(/'/g, "'\\''");
-
-  const writeCmd = `cat > ${configPath} << 'EOF'\n${escapedConfig}\nEOF`;
+  
+  const writeCmd = `echo ${configContent} | base64 -d > ${configPath}`;
 
   const result = await executor.execute(writeCmd);
 

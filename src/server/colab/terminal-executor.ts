@@ -122,6 +122,7 @@ export class ColabTerminalExecutor implements CommandExecutor {
 
         // check marker
         const result = this.isCmdDone(chunk);
+        this.logger.debug(`chunk received: ${chunk}`);
         if (result.complete) {
           this.logger.debug('execution done', {
             output: cmdOutput,
@@ -202,7 +203,7 @@ export class ColabTerminalExecutor implements CommandExecutor {
     const command = [cmd, ...args].join(' ');
     const MARKER = '__CMD_COMPLETE__';
 
-    const wrappedCmd = `(${command}); rc=$?; echo "${MARKER}:exit=$rc"\r`;
+    const wrappedCmd = `( ${command} ); rc=$?; echo "${MARKER}:exit=$rc"\r`;
 
     return JSON.stringify({ data: wrappedCmd });
   }
