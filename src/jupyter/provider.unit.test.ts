@@ -16,22 +16,22 @@ import { SinonStubbedInstance } from 'sinon';
 import * as sinon from 'sinon';
 import { CancellationToken, CancellationTokenSource } from 'vscode';
 import { AuthChangeEvent } from '../auth/types';
-import { SubscriptionTier, Variant } from '../colab/api';
-import { ColabClient } from '../colab/client';
+import { InputFlowAction } from '../common/multi-step-quickpick';
+import { SubscriptionTier, Variant } from '../server/colab/api';
+import { ColabClient } from '../server/colab/client';
 import {
   AUTO_CONNECT,
   NEW_SERVER,
   OPEN_COLAB_WEB,
   SIGN_IN_VIEW_EXISTING,
   UPGRADE_TO_PRO,
-} from '../colab/commands/constants';
-import { buildIconLabel } from '../colab/commands/utils';
+} from '../server/colab/commands/constants';
+import { buildIconLabel } from '../server/colab/commands/utils';
 import {
   COLAB_CLIENT_AGENT_HEADER,
   COLAB_RUNTIME_PROXY_TOKEN_HEADER,
-} from '../colab/headers';
-import { ServerPicker } from '../colab/server-picker';
-import { InputFlowAction } from '../common/multi-step-quickpick';
+} from '../server/colab/headers';
+import { ServerPicker } from '../server/colab/server-picker';
 import { TestEventEmitter } from '../test/helpers/events';
 import { TestUri } from '../test/helpers/uri';
 import {

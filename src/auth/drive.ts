@@ -5,9 +5,9 @@
  */
 
 import vscode from 'vscode';
-import { ColabClient } from '../colab/client';
 import { log } from '../common/logging';
 import { ColabAssignedServer } from '../jupyter/servers';
+import { ColabClient } from '../server/colab/client';
 
 /**
  * Handles DriveFS authorization by triggering an OAuth consent flow and

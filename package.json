@@ -168,6 +168,16 @@
         "icon": "$(per-logo)"
       },
       {
+        "command": "per.colabSubmenu",
+        "category": "PER",
+        "title": "Colab"
+      },
+      {
+        "command": "per.customInstance",
+        "category": "PER",
+        "title": "Custom Instance"
+      },
+      {
         "command": "per.newFile",
         "title": "New File..."
       },
@@ -390,6 +400,7 @@
     "google-auth-library": "^9.15.0",
     "node-fetch": "^2.6.7",
     "semver": "^7.7.3",
+    "strip-ansi": "^7.1.2",
     "uuid": "^11.0.3",
     "vscode-languageclient": "^10.0.0-next.17",
     "ws": "^6.2.3",

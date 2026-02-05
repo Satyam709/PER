@@ -1,6 +1,7 @@
 /**
  * @license
  * Copyright 2025 Google LLC
+ * Copyright 2026 Satyam
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -12,28 +13,29 @@ import {
   JupyterServerCommandProvider,
   JupyterServerProvider,
 } from '@vscode/jupyter-extension';
-import { CancellationToken, Disposable, Event, ProviderResult } from 'vscode';
+import { CancellationToken, Disposable, Event } from 'vscode';
 import vscode from 'vscode';
 import { AuthChangeEvent } from '../auth/types';
-import { SubscriptionTier } from '../colab/api';
-import { ColabClient } from '../colab/client';
-import {
-  AUTO_CONNECT,
-  Command,
-  NEW_SERVER,
-  OPEN_COLAB_WEB,
-  SIGN_IN_VIEW_EXISTING,
-  UPGRADE_TO_PRO,
-} from '../colab/commands/constants';
-import { openColabSignup, openColabWeb } from '../colab/commands/external';
-import { buildIconLabel, stripIconLabel } from '../colab/commands/utils';
-import { ServerPicker } from '../colab/server-picker';
 import { LatestCancelable } from '../common/async';
 import { log } from '../common/logging';
 import { traceMethod } from '../common/logging/decorators';
 import { InputFlowAction } from '../common/multi-step-quickpick';
+import { ColabClient } from '../server/colab/client';
+import {
+  AUTO_CONNECT,
+  COLAB_SUBMENU,
+  Command,
+  NEW_SERVER,
+  OPEN_COLAB_WEB,
+  SIGN_IN_VIEW_EXISTING,
+} from '../server/colab/commands/constants';
+import { openColabWeb } from '../server/colab/commands/external';
+import { buildIconLabel, stripIconLabel } from '../server/colab/commands/utils';
+import { ServerPicker } from '../server/colab/server-picker';
+import { CUSTOM_INSTANCE } from '../server/custom-instance/commands/constants';
 import { isUUID } from '../utils/uuid';
 import { AssignmentChangeEvent, AssignmentManager } from './assignments';
+import { NotebookServerTracker } from './notebook-server-tracker';
 
 /**
  * Colab Jupyter server provider.
@@ -65,6 +67,7 @@ export class ColabJupyterServerProvider
     private readonly client: ColabClient,
     private readonly serverPicker: ServerPicker,
     jupyter: Jupyter,
+    private readonly notebookTracker: NotebookServerTracker,
   ) {
     this.serverChangeEmitter = new this.vs.EventEmitter<void>();
     this.onDidChangeServers = this.serverChangeEmitter.event;
@@ -89,29 +92,45 @@ export class ColabJupyterServerProvider
   /**
    * Provides the list of Colab {@link JupyterServer | Jupyter Servers} which
    * can be used.
+   *
+   * Note: We intentionally return servers WITHOUT connectionInformation here.
+   * This forces the Jupyter extension to call resolveJupyterServer when a
+   * server is selected, which is our hook for tracking notebook-server
+   * associations.
    */
   @traceMethod
-  provideJupyterServers(
+  async provideJupyterServers(
     _token: CancellationToken,
-  ): ProviderResult<JupyterServer[]> {
+  ): Promise<JupyterServer[]> {
     if (!this.isAuthorized) {
       return [];
     }
-    return this.assignmentManager.getServers('extension');
+    const servers = await this.assignmentManager.getServers('extension');
+    // Strip connectionInformation to force resolveJupyterServer to be called
+    return servers.map((s) => ({
+      id: s.id,
+      label: s.label,
+      // connectionInformation intentionally omitted
+    }));
   }
 
   /**
    * Resolves the connection for the provided Colab {@link JupyterServer}.
+   * Also tracks the notebook-server association for context-aware operations.
    */
   @traceMethod
-  resolveJupyterServer(
+  async resolveJupyterServer(
     server: JupyterServer,
     _token: CancellationToken,
-  ): ProviderResult<JupyterServer> {
+  ): Promise<JupyterServer> {
     if (!isUUID(server.id)) {
       throw new Error('Unexpected server ID format, expected UUID');
     }
-    return this.assignmentManager.refreshConnection(server.id);
+    log.debug(`resolving server ${server.label}`);
+    const resolved = await this.assignmentManager.refreshConnection(server.id);
+    // Track which notebook is using this server
+    this.notebookTracker.trackConnection(resolved);
+    return resolved;
   }
 
   /**
@@ -138,18 +157,8 @@ export class ColabJupyterServerProvider
     ) {
       commands.push(SIGN_IN_VIEW_EXISTING);
     }
-    commands.push(AUTO_CONNECT, NEW_SERVER, OPEN_COLAB_WEB);
-    if (this.isAuthorized) {
-      try {
-        const tier = await this.client.getSubscriptionTier();
-        if (tier === SubscriptionTier.NONE) {
-          commands.push(UPGRADE_TO_PRO);
-        }
-      } catch (_) {
-        // Including the command to upgrade to pro is non-critical. If it fails,
-        // just return the commands without it.
-      }
-    }
+    // Show the new menu structure with Colab and Custom Instance
+    commands.push(COLAB_SUBMENU, CUSTOM_INSTANCE);
     return commands.map((c) => ({
       label: buildIconLabel(c),
       description: c.description,
@@ -178,16 +187,18 @@ export class ColabJupyterServerProvider
           // sign-in and navigate back.
           await this.assignmentManager.reconcileAssignedServers();
           throw InputFlowAction.back;
-        case AUTO_CONNECT.label:
-          return await this.assignmentManager.latestOrAutoAssignServer();
-        case NEW_SERVER.label:
-          return await this.assignServer();
-        case OPEN_COLAB_WEB.label:
-          openColabWeb(this.vs);
-          return;
-        case UPGRADE_TO_PRO.label:
-          openColabSignup(this.vs);
-          return;
+        case COLAB_SUBMENU.label:
+          return await this.showColabSubmenu();
+        case CUSTOM_INSTANCE.label:
+          // Close the quick pick first, then show the message
+          await this.vs.commands.executeCommand(
+            'workbench.action.closeQuickOpen',
+          );
+          await this.vs.window.showInformationMessage(
+            'Custom Instance feature is coming soon!',
+          );
+          // Throw CancellationError to properly abort kernel scanning
+          throw new this.vs.CancellationError();
         default:
           throw new Error('Unexpected command');
       }
@@ -206,6 +217,41 @@ export class ColabJupyterServerProvider
       // commands, the quick pick is left spinning in the "busy" state.
       await this.vs.commands.executeCommand('workbench.action.closeQuickOpen');
       throw e;
+    }
+  }
+
+  /**
+   * Show the Colab submenu with available Colab options.
+   */
+  private async showColabSubmenu(): Promise<JupyterServer | undefined> {
+    const colabCommands: Command[] = [AUTO_CONNECT, NEW_SERVER, OPEN_COLAB_WEB];
+
+    const items = colabCommands.map((c) => ({
+      label: buildIconLabel(c),
+      description: c.description,
+      command: c,
+    }));
+
+    const selected = await this.vs.window.showQuickPick(items, {
+      title: 'PER > Colab',
+      placeHolder: 'Select a Colab option',
+    });
+
+    if (!selected) {
+      throw InputFlowAction.back;
+    }
+
+    // Handle the selected command
+    switch (selected.command.label) {
+      case AUTO_CONNECT.label:
+        return await this.assignmentManager.latestOrAutoAssignServer();
+      case NEW_SERVER.label:
+        return await this.assignServer();
+      case OPEN_COLAB_WEB.label:
+        openColabWeb(this.vs);
+        return;
+      default:
+        throw new Error('Unexpected command');
     }
   }
 
@@ -238,6 +284,7 @@ export class ColabJupyterServerProvider
     await this.vs.commands.executeCommand(
       'setContext',
       'colab.hasAssignedServer',
+
       value,
     );
   }

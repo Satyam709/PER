@@ -5,6 +5,7 @@
  */
 
 import { randomUUID, UUID } from 'crypto';
+import {  JupyterServer } from '@vscode/jupyter-extension';
 import fetch, {
   Headers,
   Request,
@@ -13,6 +14,7 @@ import fetch, {
   Response,
 } from 'node-fetch';
 import vscode from 'vscode';
+import { log } from '../common/logging';
 import {
   Assignment,
   ListedAssignment,
@@ -22,23 +24,23 @@ import {
   SubscriptionTier,
   Shape,
   isHighMemOnlyAccelerator,
-} from '../colab/api';
+} from '../server/colab/api';
 import {
   ColabClient,
   DenylistedError,
   InsufficientQuotaError,
   NotFoundError,
   TooManyAssignmentsError,
-} from '../colab/client';
-import { REMOVE_SERVER } from '../colab/commands/constants';
+} from '../server/colab/client';
 import {
   COLAB_CLIENT_AGENT_HEADER,
   COLAB_RUNTIME_PROXY_TOKEN_HEADER,
-} from '../colab/headers';
-import { TerminalExecutor } from '../colab/terminal-executor';
-import { log } from '../common/logging';
+} from '../server/colab/headers';
+import { ColabTerminalExecutor } from '../server/colab/terminal-executor';
+import { REMOVE_SERVER } from '../server/commands/constants';
 import { ProxiedJupyterClient } from './client';
 import { colabProxyWebSocket } from './colab-proxy-web-socket';
+import { CommandExecutor } from './servers';
 import {
   AllServers,
   ColabAssignedServer,
@@ -46,6 +48,7 @@ import {
   ColabServerDescriptor,
   DEFAULT_CPU_SERVER,
   isColabAssignedServer,
+  TerminalProvider,
   UnownedServer,
 } from './servers';
 import { ServerStorage } from './storage';
@@ -82,6 +85,8 @@ export class AssignmentManager implements vscode.Disposable {
 
   private readonly assignmentChange: vscode.EventEmitter<AssignmentChangeEvent>;
   private readonly disposables: vscode.Disposable[] = [];
+  /** Track terminal providers for cleanup on server removal */
+  private readonly serverTerminals = new Map<string, TerminalProvider>();
 
   constructor(
     private readonly vs: typeof vscode,
@@ -91,8 +96,16 @@ export class AssignmentManager implements vscode.Disposable {
     this.assignmentChange = new vs.EventEmitter<AssignmentChangeEvent>();
     this.disposables.push(this.assignmentChange);
     this.onDidAssignmentsChange = this.assignmentChange.event;
-    // TODO: Remove once https://github.com/microsoft/vscode-jupyter/issues/17094 is fixed.
+
+    // Handle terminal cleanup on server removal
     this.onDidAssignmentsChange((e) => {
+      for (const { server } of e.removed) {
+        const terminal = this.serverTerminals.get(server.id);
+        if (terminal) {
+          terminal.disposeTerminal();
+          this.serverTerminals.delete(server.id);
+        }
+      }
       void this.notifyReloadNotebooks(e);
     });
   }
@@ -535,7 +548,7 @@ export class AssignmentManager implements vscode.Disposable {
     headers[COLAB_RUNTIME_PROXY_TOKEN_HEADER.key] = token;
     headers[COLAB_CLIENT_AGENT_HEADER.key] = COLAB_CLIENT_AGENT_HEADER.value;
 
-    const colabServer: ColabAssignedServer = {
+    const colabServer = {
       id: server.id,
       label: server.label,
       variant: server.variant,
@@ -552,17 +565,39 @@ export class AssignmentManager implements vscode.Disposable {
       },
       dateAssigned,
     };
-    const result = {
+    const websocketAddedServer = {
       ...colabServer,
       connectionInformation: {
         ...colabServer.connectionInformation,
         WebSocket: colabProxyWebSocket(this.vs, this.client, colabServer),
       },
     };
-    log.info('server assigned ', result);
-    log.info('trying to connect terminal ');
-    new TerminalExecutor(result);
-    return result;
+    log.debug('server assigned ', websocketAddedServer);
+    return {
+      ...websocketAddedServer,
+      terminal: this.createTerminalProvider(websocketAddedServer),
+    };
+  }
+
+  /**
+   * Creates/Add a terminal provider for a server
+   * The terminal is only connected when getTerminal() is called.
+   */
+  private createTerminalProvider(server: JupyterServer): TerminalProvider {
+    let executor: CommandExecutor | null = null;
+    return {
+      getTerminal(): CommandExecutor {
+        executor ??= new ColabTerminalExecutor(server);
+        return executor;
+      },
+      disposeTerminal(): void {
+        if (executor) {
+          log.info(`Disposing terminal for server: ${server.id}`);
+          executor.dispose();
+          executor = null;
+        }
+      },
+    };
   }
 
   private async notifyMaxAssignmentsExceeded() {

@@ -1,6 +1,7 @@
 /**
  * @license
  * Copyright 2025 Google LLC
+ * Copyright 2026 Satyam
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -8,35 +9,6 @@ import { Jupyter } from '@vscode/jupyter-extension';
 import vscode, { Disposable } from 'vscode';
 import { AccountSwitcher } from './auth/account-switcher';
 import { TokenBridge } from './auth/token-bridge';
-import { StorageConfigManager } from './cloudstorage/config';
-import { ColabClient } from './colab/client';
-import {
-  COLAB_TOOLBAR,
-  UPLOAD,
-  MOUNT_SERVER,
-  REMOVE_SERVER,
-  SIGN_OUT,
-  CONFIGURE_STORAGE,
-  SYNC_STORAGE,
-} from './colab/commands/constants';
-import { upload } from './colab/commands/files';
-import { notebookToolbar } from './colab/commands/notebook';
-import { mountServer, removeServer } from './colab/commands/server';
-import { configureStorage, syncStorage } from './colab/commands/storage';
-import { ConnectionRefreshController } from './colab/connection-refresher';
-import { ConsumptionNotifier } from './colab/consumption/notifier';
-import { ConsumptionPoller } from './colab/consumption/poller';
-import { ServerKeepAliveController } from './colab/keep-alive';
-import {
-  deleteFile,
-  download,
-  newFile,
-  newFolder,
-  renameFile,
-} from './colab/server-browser/commands';
-import { ServerItem } from './colab/server-browser/server-item';
-import { ServerTreeProvider } from './colab/server-browser/server-tree';
-import { ServerPicker } from './colab/server-picker';
 import { CONFIG } from './colab-config';
 import { initializeLogger, log } from './common/logging';
 import { Toggleable } from './common/toggleable';
@@ -45,8 +17,55 @@ import { AssignmentManager } from './jupyter/assignments';
 import { ContentsFileSystemProvider } from './jupyter/contents/file-system';
 import { JupyterConnectionManager } from './jupyter/contents/sessions';
 import { getJupyterApi } from './jupyter/jupyter-extension';
+import { NotebookServerTracker } from './jupyter/notebook-server-tracker';
 import { ColabJupyterServerProvider } from './jupyter/provider';
 import { ServerStorage } from './jupyter/storage';
+import { ColabClient } from './server/colab/client';
+import {
+  COLAB_TOOLBAR,
+  COLAB_SUBMENU,
+} from './server/colab/commands/constants';
+import { upload } from './server/colab/commands/files';
+import {
+  notebookToolbar,
+  colabSubmenu,
+  customInstanceSubmenu,
+} from './server/colab/commands/notebook';
+import { mountServer, removeServer } from './server/colab/commands/server';
+import { ConnectionRefreshController } from './server/colab/connection-refresher';
+import { ConsumptionNotifier } from './server/colab/consumption/notifier';
+import { ConsumptionPoller } from './server/colab/consumption/poller';
+import { ServerKeepAliveController } from './server/colab/keep-alive';
+import {
+  deleteFile,
+  download,
+  newFile,
+  newFolder,
+  renameFile,
+} from './server/colab/server-browser/commands';
+import { ServerItem } from './server/colab/server-browser/server-item';
+import { ServerTreeProvider } from './server/colab/server-browser/server-tree';
+import { ServerPicker } from './server/colab/server-picker';
+import {
+  UPLOAD,
+  MOUNT_SERVER,
+  REMOVE_SERVER,
+  SIGN_OUT,
+} from './server/commands/constants';
+import { CUSTOM_INSTANCE } from './server/custom-instance/commands/constants';
+import {
+  CONFIGURE_STORAGE,
+  SYNC_STORAGE,
+} from './server/storage/commands/constants';
+import {
+  configureStorage,
+  setupStorageOnServer,
+  syncStorage,
+  validateStorageSetup,
+} from './server/storage/commands/storage';
+import { StorageConfigManager } from './server/storage/config';
+import { StorageStatusBar } from './server/storage/status-bar';
+import { StorageIntegration } from './server/storage/storage-integration';
 import { ExtensionUriHandler } from './system/uri';
 
 // Called when the extension is activated.
@@ -104,11 +123,19 @@ export async function activate(context: vscode.ExtensionContext) {
     context.secrets,
     context.workspaceState,
   );
+  const storageIntegration = new StorageIntegration(
+    vscode,
+    storageConfigManager,
+  );
   const assignmentManager = new AssignmentManager(
     vscode,
     colabClient,
     serverStorage,
   );
+
+  // Create notebook-server tracker for context-aware operations
+  const notebookTracker = new NotebookServerTracker(vscode, assignmentManager);
+
   const serverProvider = new ColabJupyterServerProvider(
     vscode,
     authEvent,
@@ -116,6 +143,7 @@ export async function activate(context: vscode.ExtensionContext) {
     colabClient,
     new ServerPicker(vscode, assignmentManager),
     jupyter.exports,
+    notebookTracker,
   );
   const jupyterConnections = new JupyterConnectionManager(
     vscode,
@@ -137,6 +165,14 @@ export async function activate(context: vscode.ExtensionContext) {
   );
   const consumptionMonitor = watchConsumption(colabClient);
 
+  // Create storage status bar with notebook tracker for context awareness
+  const storageStatusBar = new StorageStatusBar(
+    vscode,
+    notebookTracker,
+    storageIntegration,
+    storageConfigManager,
+  );
+
   // Create a simple toggle controller for auth-dependent features
   const whileAuthorizedToggle = authEvent((e) => {
     // cspell:ignore toggleables
@@ -149,6 +185,7 @@ export async function activate(context: vscode.ExtensionContext) {
       toggleables.forEach((t) => {
         t.on();
       });
+      // Terminal connections are now on-demand, no initialization needed
     } else {
       toggleables.forEach((t) => {
         t.off();
@@ -191,11 +228,22 @@ export async function activate(context: vscode.ExtensionContext) {
     keepServersAlive,
     ...consumptionMonitor.disposables,
     whileAuthorizedToggle,
+    storageIntegration,
+    storageStatusBar,
     ...registerCommands(
       tokenBridge,
       assignmentManager,
       fs,
       storageConfigManager,
+      storageIntegration,
+      notebookTracker,
+    ),
+    ...setupStorageIntegration(
+      vscode,
+      assignmentManager,
+      storageIntegration,
+      storageConfigManager,
+      notebookTracker,
     ),
   );
 
@@ -238,6 +286,8 @@ function registerCommands(
   assignmentManager: AssignmentManager,
   fs: ContentsFileSystemProvider,
   storageConfigManager: StorageConfigManager,
+  storageIntegration: StorageIntegration,
+  notebookTracker: NotebookServerTracker,
 ): Disposable[] {
   return [
     vscode.commands.registerCommand(SIGN_OUT.id, async () => {
@@ -275,10 +325,25 @@ function registerCommands(
       await configureStorage(vscode, storageConfigManager);
     }),
     vscode.commands.registerCommand(SYNC_STORAGE.id, async () => {
-      await syncStorage(vscode, assignmentManager, storageConfigManager);
+      await syncStorage(vscode, notebookTracker, storageIntegration);
+    }),
+    vscode.commands.registerCommand('per.storage.setupServer', async () => {
+      await setupStorageOnServer(vscode, notebookTracker, storageIntegration);
+    }),
+    vscode.commands.registerCommand('per.storage.syncNow', async () => {
+      await syncStorage(vscode, notebookTracker, storageIntegration);
+    }),
+    vscode.commands.registerCommand('per.storage.validateSetup', async () => {
+      await validateStorageSetup(vscode, notebookTracker, storageIntegration);
     }),
     vscode.commands.registerCommand(COLAB_TOOLBAR.id, async () => {
       await notebookToolbar(vscode, assignmentManager);
+    }),
+    vscode.commands.registerCommand(COLAB_SUBMENU.id, async () => {
+      await colabSubmenu(vscode, assignmentManager);
+    }),
+    vscode.commands.registerCommand(CUSTOM_INSTANCE.id, async () => {
+      await customInstanceSubmenu(vscode, assignmentManager);
     }),
     vscode.commands.registerCommand(
       'per.newFile',
@@ -311,4 +376,125 @@ function registerCommands(
       },
     ),
   ];
+}
+
+/**
+ * Setup automatic storage integration on server assignment changes.
+ */
+function setupStorageIntegration(
+  vs: typeof vscode,
+  assignmentManager: AssignmentManager,
+  storageIntegration: StorageIntegration,
+  storageConfigManager: StorageConfigManager,
+  notebookTracker: NotebookServerTracker,
+): Disposable[] {
+  const disposables: Disposable[] = [];
+
+  // Auto-setup storage when servers are added (if enabled)
+  const assignmentListener = assignmentManager.onDidAssignmentsChange((e) => {
+    void (async () => {
+      // Check if storage is enabled
+      const storageEnabled = vs.workspace
+        .getConfiguration('per.storage')
+        .get<boolean>('enabled', false);
+
+      if (!storageEnabled) {
+        return;
+      }
+
+      // Check if auto-sync is enabled
+      const autoSync = vs.workspace
+        .getConfiguration('per.storage')
+        .get<boolean>('autoSync', true);
+
+      if (!autoSync) {
+        return;
+      }
+
+      const isConfigured = await storageConfigManager.isConfigured();
+      if (!isConfigured) {
+        return;
+      }
+
+      // Setup storage on newly added servers using on-demand terminal
+      for (const server of e.added) {
+        log.info(`Auto-setting up storage on server: ${server.id}`);
+        try {
+          if (!server.terminal) {
+            log.warn(`No terminal provider for server: ${server.id}`);
+            continue;
+          }
+
+          // Trigger the setup cmd
+          await setupStorageOnServer(
+            vscode,
+            notebookTracker,
+            storageIntegration,
+          );
+        } catch (error) {
+          log.error(`Failed to setup storage on server ${server.id}:`, error);
+        }
+      }
+
+      // Clean up storage status for removed servers
+      for (const { server } of e.removed) {
+        storageIntegration.removeServer(server.id);
+      }
+    })();
+  });
+
+  disposables.push(assignmentListener);
+
+  // Update context keys based on storage status
+  const statusListener = storageIntegration.onDidChangeStatus(() => {
+    void (async () => {
+      const isConfigured = await storageConfigManager.isConfigured();
+      await vs.commands.executeCommand(
+        'setContext',
+        'per.hasStorageConfigured',
+        isConfigured,
+      );
+    })();
+  });
+
+  disposables.push(statusListener);
+
+  // Initialize context key and status bar
+  void (async () => {
+    const isConfigured = await storageConfigManager.isConfigured();
+    await vs.commands.executeCommand(
+      'setContext',
+      'per.hasStorageConfigured',
+      isConfigured,
+    );
+
+    // Also check storage enabled setting for initial status bar update
+    const storageEnabled = vs.workspace
+      .getConfiguration('per.storage')
+      .get<boolean>('enabled', false);
+
+    if (storageEnabled && !isConfigured) {
+      log.info(
+        'Storage is enabled but not configured. Status bar will prompt configuration.',
+      );
+    }
+  })();
+
+  // Listen to configuration changes
+  const configListener = vs.workspace.onDidChangeConfiguration((e) => {
+    if (e.affectsConfiguration('per.storage')) {
+      void (async () => {
+        const isConfigured = await storageConfigManager.isConfigured();
+        await vs.commands.executeCommand(
+          'setContext',
+          'per.hasStorageConfigured',
+          isConfigured,
+        );
+      })();
+    }
+  });
+
+  disposables.push(configListener);
+
+  return disposables;
 }

@@ -15,7 +15,7 @@ import {
 } from 'vscode';
 import WebSocket from 'ws';
 import { handleDriveFsAuth } from '../auth/drive';
-import { ColabClient } from '../colab/client';
+import { ColabClient } from '../server/colab/client';
 import { TestEventEmitter } from '../test/helpers/events';
 import { newVsCodeStub, VsCodeStub } from '../test/helpers/vscode';
 import {
