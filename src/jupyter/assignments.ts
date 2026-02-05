@@ -5,7 +5,7 @@
  */
 
 import { randomUUID, UUID } from 'crypto';
-import {  JupyterServer } from '@vscode/jupyter-extension';
+import { JupyterServer } from '@vscode/jupyter-extension';
 import fetch, {
   Headers,
   Request,

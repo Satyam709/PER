@@ -74,9 +74,9 @@ export const DEFAULT_SAFE_BISYNC_ARGS = [
 
 /**
  * Default safe args for resync refer https://rclone.org/bisync/#check-access
- * assumes the source of truth as the remote and as 
+ * assumes the source of truth as the remote and as
  * per our convention throughout remote is 'path2'
- * 
+ *
  * This forces the local to hard sync with remote --can lose local changes
  */
-export const RESYNC_FLAG = ['--resync-mode path2']
+export const RESYNC_FLAG = ['--resync-mode path2'];

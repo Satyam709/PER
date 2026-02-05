@@ -17,7 +17,7 @@ import { ColabAssignedServer } from './servers';
  * currently active notebook.
  */
 export class NotebookServerTracker implements vscode.Disposable {
-  // TODO : map should be of a JupyterServer & TerminalProvider 
+  // TODO : map should be of a JupyterServer & TerminalProvider
   // consider abstracting later
   private readonly notebookToServer = new Map<string, ColabAssignedServer>();
   private readonly activeServerEmitter: vscode.EventEmitter<
