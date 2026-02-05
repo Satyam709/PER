@@ -85,8 +85,9 @@ export async function getRcloneVersion(
     const result = await executor.execute('rclone version');
     if (result.success) {
       // Extract first line which contains version
-      const firstLine = result.output.split('\n')[0];
-      return firstLine ? firstLine.trim() : null;
+      const regex = new RegExp('/rclone v([0-9]+)$/');
+      const match = regex.exec(result.output);
+      return match ? match[1] : null;
     }
     return null;
   } catch (error) {
@@ -176,7 +177,7 @@ export async function uploadRcloneConfig(
     logger.error('Failed to create rclone config directory');
     return dirResult;
   }
-  
+
   const writeCmd = `echo ${configContent} | base64 -d > ${configPath}`;
 
   const result = await executor.execute(writeCmd);
@@ -349,7 +350,7 @@ export async function performInitialResync(
   // Dry run resync
   const flags = buildRcloneFlags(options);
   logger.debug('Running dry-run resync');
-  const dryRunCmd = `rclone bisync "${remotePath}" "${localPath}" ${flags} --resync --dry-run`;
+  const dryRunCmd = `rclone bisync "${remotePath}" "${localPath}" ${flags} --resync-mode newer --dry-run`;
   const dryRunResult = await executor.execute(dryRunCmd);
 
   if (!dryRunResult.success) {
