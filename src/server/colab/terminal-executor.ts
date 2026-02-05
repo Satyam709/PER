@@ -277,7 +277,7 @@ export class ColabTerminalExecutor implements CommandExecutor {
     }
     /**
      * Handle the response which is of form
-     * "\{"data":"..."}"
+     * "\{"data":"..."\}"
      */
     const responseHandler = (event: MessageEvent) => {
       if (typeof event.data !== 'string') {
