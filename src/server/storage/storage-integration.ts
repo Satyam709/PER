@@ -21,9 +21,19 @@ import { RcloneManager } from './rclone-manager';
 
 /**
  * Status of storage setup on a server.
+ *
+ * - NOT_CONFIGURED: Workspace storage config not set (rclone path, remote)
+ * - SETUP_REQUIRED: Workspace configured, but server needs setup
+ *   (rclone not installed or config not uploaded)
+ * - CHECKING: Validating storage setup on server
+ * - INSTALLING: Installing rclone on server
+ * - SYNCING: Sync operation in progress
+ * - READY: Storage fully configured and ready
+ * - ERROR: Setup or sync operation failed
  */
 export enum StorageStatus {
   NOT_CONFIGURED = 'not_configured',
+  SETUP_REQUIRED = 'setup_required',
   CHECKING = 'checking',
   INSTALLING = 'installing',
   SYNCING = 'syncing',
@@ -83,6 +93,88 @@ export class StorageIntegration {
    */
   async isConfigured(): Promise<boolean> {
     return this.storageConfigManager.isConfigured();
+  }
+
+  /**
+   * Check and initialize storage status for a server.
+   *
+   * Called when connecting to a server (e.g., on VS Code restart) to determine
+   * the actual state of storage setup on the server. This fixes the issue where
+   * the in-memory status map is empty after restart but the server may already
+   * have rclone configured.
+   *
+   * @param executor - Command executor for the server
+   * @returns Setup result with the determined status
+   */
+  async checkAndInitializeStatus(
+    executor: CommandExecutor,
+  ): Promise<StorageSetupResult> {
+    const serverId = executor.serverId;
+    this.logger.info(`Checking storage status on server: ${serverId}`);
+
+    // If already checked or in a transient state, return current status
+    const currentStatus = this.serverSetupStatus.get(serverId);
+    if (
+      currentStatus === StorageStatus.CHECKING ||
+      currentStatus === StorageStatus.INSTALLING ||
+      currentStatus === StorageStatus.SYNCING ||
+      currentStatus === StorageStatus.READY
+    ) {
+      this.logger.debug(
+        `Server ${serverId} already has status: ${currentStatus}, skipping check`,
+      );
+      return {
+        success: currentStatus === StorageStatus.READY,
+        status: currentStatus,
+      };
+    }
+
+    this.updateStatus(serverId, StorageStatus.CHECKING);
+
+    try {
+      // Check if storage is configured in workspace
+      const config = await this.storageConfigManager.get();
+      if (!config?.enabled) {
+        this.logger.debug('Storage not enabled in workspace config');
+        this.updateStatus(serverId, StorageStatus.NOT_CONFIGURED);
+        return {
+          success: false,
+          status: StorageStatus.NOT_CONFIGURED,
+          message: 'Storage not configured',
+        };
+      }
+
+      // Validate rclone setup on server
+      const validation = await validateRcloneSetup(executor);
+
+      if (validation.valid) {
+        this.logger.info(`Storage is ready on server ${serverId}`);
+        this.updateStatus(serverId, StorageStatus.READY);
+        return {
+          success: true,
+          status: StorageStatus.READY,
+          message: validation.message,
+        };
+      } else {
+        this.logger.info(
+          `Storage not setup on server ${serverId}: ${validation.message}`,
+        );
+        this.updateStatus(serverId, StorageStatus.SETUP_REQUIRED);
+        return {
+          success: false,
+          status: StorageStatus.SETUP_REQUIRED,
+          message: validation.message,
+        };
+      }
+    } catch (error) {
+      this.logger.error(`Error checking storage status on ${serverId}:`, error);
+      this.updateStatus(serverId, StorageStatus.ERROR);
+      return {
+        success: false,
+        status: StorageStatus.ERROR,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
   }
 
   /**
@@ -254,12 +346,17 @@ export class StorageIntegration {
 
   /**
    * Validate storage setup on a server.
+   *
+   * Updates the server status map to reflect the validation result,
+   * so the status bar correctly shows the current state.
    */
   async validateSetup(executor: CommandExecutor): Promise<StorageSetupResult> {
+    const serverId = executor.serverId;
     try {
       const config = await this.storageConfigManager.get();
 
       if (!config?.enabled) {
+        this.updateStatus(serverId, StorageStatus.NOT_CONFIGURED);
         return {
           success: false,
           status: StorageStatus.NOT_CONFIGURED,
@@ -271,19 +368,22 @@ export class StorageIntegration {
       const validation = await validateRcloneSetup(executor);
 
       if (!validation.valid) {
+        this.updateStatus(serverId, StorageStatus.SETUP_REQUIRED);
         return {
           success: false,
-          status: StorageStatus.ERROR,
+          status: StorageStatus.SETUP_REQUIRED,
           message: validation.message,
         };
       }
 
+      this.updateStatus(serverId, StorageStatus.READY);
       return {
         success: true,
         status: StorageStatus.READY,
         message: validation.message,
       };
     } catch (error) {
+      this.updateStatus(serverId, StorageStatus.ERROR);
       return {
         success: false,
         status: StorageStatus.ERROR,

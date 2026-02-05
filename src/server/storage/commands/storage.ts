@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { JupyterServer } from '@vscode/jupyter-extension';
 import vscode from 'vscode';
 import { NotebookServerTracker } from '../../../jupyter/notebook-server-tracker';
+import { TerminalProvider } from '../../../jupyter/servers';
 import { StorageConfigManager } from '../../storage/config';
 import { StorageConfigPicker } from '../../storage/storage-config-picker';
 import {
@@ -57,13 +59,12 @@ export async function configureStorage(
  */
 export async function setupStorageOnServer(
   vs: typeof vscode,
-  notebookTracker: NotebookServerTracker,
+  server: (JupyterServer & { terminal?: TerminalProvider }) | undefined,
   storageIntegration: StorageIntegration,
 ): Promise<void> {
-  const server = notebookTracker.getActiveServer();
   if (!server) {
     await vs.window.showWarningMessage(
-      'Open a notebook connected to a PER server first.',
+      'Cannot ind active server: Try opening a notebook connected to a PER server first.',
     );
     return;
   }
@@ -109,14 +110,11 @@ export async function setupStorageOnServer(
           const result = await storageIntegration.setupOnServer(executor);
 
           if (result.success) {
-            progress.report({ message: 'Complete!', increment: 100 });
-            await vs.window.showInformationMessage(
-              result.message ?? 'Storage setup complete',
-            );
+            progress.report({
+              message: `Setup complete!`,
+            });
           } else {
-            throw new Error(
-              result.error ?? result.message ?? 'Unknown error',
-            );
+            throw new Error(result.error ?? result.message ?? 'Unknown error');
           }
         } finally {
           disposable.dispose();
@@ -154,7 +152,11 @@ export async function syncStorage(
       setup,
     );
     if (choice === setup) {
-      await setupStorageOnServer(vs, notebookTracker, storageIntegration);
+      await setupStorageOnServer(
+        vs,
+        notebookTracker.getActiveServer(),
+        storageIntegration,
+      );
     }
     return;
   }
@@ -193,14 +195,11 @@ export async function syncStorage(
           const result = await storageIntegration.syncNow(executor);
 
           if (result.success) {
-            progress.report({ message: 'Complete!', increment: 100 });
-            await vs.window.showInformationMessage(
-              result.message ?? 'Sync complete',
-            );
+            progress.report({
+              message: `Complete!`,
+            });
           } else {
-            throw new Error(
-              result.error ?? result.message ?? 'Unknown error',
-            );
+            throw new Error(result.error ?? result.message ?? 'Unknown error');
           }
         } finally {
           disposable.dispose();

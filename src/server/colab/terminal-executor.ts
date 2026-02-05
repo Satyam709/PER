@@ -122,18 +122,16 @@ export class ColabTerminalExecutor implements CommandExecutor {
 
         // check marker
         const result = this.isCmdDone(chunk);
-        this.logger.debug(`chunk received: ${chunk}`);
         if (result.complete) {
-          this.logger.debug('execution done', {
+          const cmdResponse = {
             output: cmdOutput,
             success: result.exitCode == 0,
             exitCode: result.exitCode,
-          });
-          resolve({
-            output: cmdOutput,
-            success: result.exitCode == 0,
+          };
+          this.logger.debug(`execution done:\n${cmdResponse.output}`, {
             exitCode: result.exitCode,
           });
+          resolve(cmdResponse);
         }
       };
       this.terminalWs.onmessage = outputResponseHandler;
