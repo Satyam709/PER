@@ -243,7 +243,6 @@ export async function activate(context: vscode.ExtensionContext) {
       assignmentManager,
       storageIntegration,
       storageConfigManager,
-      notebookTracker,
     ),
   );
 
@@ -328,7 +327,11 @@ function registerCommands(
       await syncStorage(vscode, notebookTracker, storageIntegration);
     }),
     vscode.commands.registerCommand('per.storage.setupServer', async () => {
-      await setupStorageOnServer(vscode, notebookTracker, storageIntegration);
+      await setupStorageOnServer(
+        vscode,
+        notebookTracker.getActiveServer(),
+        storageIntegration,
+      );
     }),
     vscode.commands.registerCommand('per.storage.syncNow', async () => {
       await syncStorage(vscode, notebookTracker, storageIntegration);
@@ -386,7 +389,6 @@ function setupStorageIntegration(
   assignmentManager: AssignmentManager,
   storageIntegration: StorageIntegration,
   storageConfigManager: StorageConfigManager,
-  notebookTracker: NotebookServerTracker,
 ): Disposable[] {
   const disposables: Disposable[] = [];
 
@@ -426,11 +428,7 @@ function setupStorageIntegration(
           }
 
           // Trigger the setup cmd
-          await setupStorageOnServer(
-            vscode,
-            notebookTracker,
-            storageIntegration,
-          );
+          await setupStorageOnServer(vscode, server, storageIntegration);
         } catch (error) {
           log.error(`Failed to setup storage on server ${server.id}:`, error);
         }
