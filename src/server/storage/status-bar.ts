@@ -17,6 +17,8 @@ import { StorageIntegration, StorageStatus } from './storage-integration';
 export class StorageStatusBar implements vscode.Disposable {
   private readonly statusBarItem: vscode.StatusBarItem;
   private readonly disposables: vscode.Disposable[] = [];
+  /** Tracks servers currently being initialized to avoid duplicate checks */
+  private readonly initializingServers = new Set<string>();
 
   constructor(
     private readonly vs: typeof vscode,
@@ -91,8 +93,39 @@ export class StorageStatusBar implements vscode.Disposable {
 
     const status = this.storageIntegration.getStatus(server.id);
 
+    // If status is uninitialized (NOT_CONFIGURED is the default),
+    // trigger initialization. This handles reconnection after VS Code restart.
+    if (
+      status === StorageStatus.NOT_CONFIGURED &&
+      !this.initializingServers.has(server.id) &&
+      server.terminal
+    ) {
+      this.initializingServers.add(server.id);
+      const executor = server.terminal.getTerminal();
+      void this.storageIntegration
+        .checkAndInitializeStatus(executor)
+        .finally(() => {
+          this.initializingServers.delete(server.id);
+        });
+      // Show checking status immediately
+      this.statusBarItem.text = '$(sync~spin) Storage: Checking...';
+      this.statusBarItem.tooltip = 'Checking storage setup';
+      this.statusBarItem.backgroundColor = undefined;
+      this.statusBarItem.show();
+      return;
+    }
+
     switch (status) {
       case StorageStatus.NOT_CONFIGURED:
+        // Workspace config is set, but we haven't checked server yet
+        // This shouldn't normally appear after initialization
+        this.statusBarItem.text = '$(cloud-upload) Storage: Not Checked';
+        this.statusBarItem.tooltip = 'Click to check storage status';
+        this.statusBarItem.backgroundColor = undefined;
+        break;
+
+      case StorageStatus.SETUP_REQUIRED:
+        // Workspace configured, but server needs setup
         this.statusBarItem.text = '$(cloud-upload) Storage: Setup Required';
         this.statusBarItem.tooltip = 'Click to setup storage on server';
         this.statusBarItem.backgroundColor = new this.vs.ThemeColor(

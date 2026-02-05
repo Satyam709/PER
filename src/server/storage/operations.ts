@@ -18,6 +18,7 @@ import {
   DEFAULT_EXCLUDE_PATTERNS,
   DEFAULT_SAFE_BISYNC_ARGS,
   RCLONE_INSTALL_URL,
+  RESYNC_FLAG,
 } from './constants';
 
 const logger = logWithComponent('StorageOperations');
@@ -84,9 +85,9 @@ export async function getRcloneVersion(
   try {
     const result = await executor.execute('rclone version');
     if (result.success) {
-      // Extract first line which contains version
-      const regex = new RegExp('/rclone v([0-9]+)$/');
-      const match = regex.exec(result.output);
+      // Extract version from output like "rclone v1.68.2"
+      // Output may have leading newlines from terminal
+      const match = /rclone v([0-9.]+)/m.exec(result.output);
       return match ? match[1] : null;
     }
     return null;
@@ -194,6 +195,10 @@ export async function uploadRcloneConfig(
 
 /**
  * List configured rclone remotes.
+ *
+ * Parses raw terminal output which may contain control characters.
+ * Remote names are extracted using regex matching pattern:
+ * word characters followed by colone e.g drive1:, dropbox:
  */
 export async function listRcloneRemotes(
   executor: CommandExecutor,
@@ -201,10 +206,13 @@ export async function listRcloneRemotes(
   try {
     const result = await executor.execute('rclone listremotes');
     if (result.success) {
-      return result.output
-        .split('\n')
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
+      // Match remote names: word characters (letters, digits, underscore)
+      // followed by colon. Handles raw terminal output with control chars.
+      const remoteRegex = /^[\w-]+:$/gm;
+      const matches = result.output.match(remoteRegex);
+      if (matches) {
+        return matches.map((remote) => remote.trim());
+      }
     }
     return [];
   } catch (error) {
@@ -279,18 +287,39 @@ export async function createCheckFile(
 }
 
 /**
+ * Sanitize a path for rclone bisync state file naming.
+ *
+ * Rclone replaces `/` and `:` with `_`, and removes leading underscores.
+ * Other characters (including hyphens) are preserved.
+ *
+ * Example:
+ * - `/content/aca269fc-5f7d-473f-ab74-4440bb75cef9` → `content_aca269fc-5f7d-473f-ab74-4440bb75cef9`
+ * - `drive1:/per/testing/t1` → `drive1_per_testing_t1`
+ */
+export function sanitizePathForBisync(path: string): string {
+  return path
+    .replace(/[/:]/g, '_') // Replace / and : with _
+    .replace(/_+/g, '_') // Collapse consecutive underscores
+    .replace(/^_+/, ''); // Remove leading underscores
+}
+
+/**
  * Check if bisync state exists for a path pair.
+ *
+ * Convention: Path1 is always local, Path2 is always remote
+ * State files are named: `<sanitized_path1>..<sanitized_path2>.path1.lst`
  */
 export async function bisyncStateExists(
   executor: CommandExecutor,
-  remotePath: string,
   localPath: string,
+  remotePath: string,
 ): Promise<boolean> {
   try {
-    // Generate state file name
-    const stateId = `${remotePath}..${localPath}`.replace(/[^a-zA-Z0-9]/g, '_');
-    const stateFile = `$HOME/.cache/rclone/bisync/${stateId}.lst`;
+    const sanitizedLocal = sanitizePathForBisync(localPath);
+    const sanitizedRemote = sanitizePathForBisync(remotePath);
+    const stateFile = `$HOME/.cache/rclone/bisync/${sanitizedLocal}..${sanitizedRemote}.path1.lst`;
 
+    logger.debug(`Checking for bisync state file: ${stateFile}`);
     const cmd = `test -f ${stateFile}`;
     const result = await executor.execute(cmd);
     return result.success;
@@ -346,11 +375,15 @@ export async function performInitialResync(
   if (!checkFileResult.success) {
     return checkFileResult;
   }
+  options.additionalFlags ??= [];
+  options.additionalFlags.push(...RESYNC_FLAG);
+  logger.debug('Added resync flags', { flags: options.additionalFlags });
 
   // Dry run resync
   const flags = buildRcloneFlags(options);
   logger.debug('Running dry-run resync');
-  const dryRunCmd = `rclone bisync "${remotePath}" "${localPath}" ${flags} --resync-mode newer --dry-run`;
+
+  const dryRunCmd = `rclone bisync "${localPath}" "${remotePath}" ${flags} --dry-run`;
   const dryRunResult = await executor.execute(dryRunCmd);
 
   if (!dryRunResult.success) {
@@ -360,7 +393,7 @@ export async function performInitialResync(
 
   // Actual resync
   logger.debug('Running actual resync');
-  const resyncCmd = `rclone bisync "${remotePath}" "${localPath}" ${flags} --resync`;
+  const resyncCmd = `rclone bisync "${localPath}" "${remotePath}" ${flags}`;
   return await executor.execute(resyncCmd);
 }
 
@@ -372,19 +405,19 @@ export async function performBidirectionalSync(
   options: SyncOptions,
 ): Promise<CommandResult> {
   const { remotePath, localPath } = options;
-  logger.info('Performing bidirectional sync...', { remotePath, localPath });
+  logger.info('Performing bidirectional sync...', { localPath, remotePath });
 
-  // Check if state exists
-  const stateExists = await bisyncStateExists(executor, remotePath, localPath);
+  // Check if state exists (Path1=local, Path2=remote)
+  const stateExists = await bisyncStateExists(executor, localPath, remotePath);
 
   if (!stateExists) {
     logger.warn('Bisync state does not exist, performing initial resync');
     return await performInitialResync(executor, options);
   }
 
-  // Run incremental bisync
+  // Run incremental bisync (Path1=local, Path2=remote - consistent with resync)
   const flags = buildRcloneFlags(options);
-  const bisyncCmd = `rclone bisync "${remotePath}" "${localPath}" ${flags}`;
+  const bisyncCmd = `rclone bisync "${localPath}" "${remotePath}" ${flags}`;
   return await executor.execute(bisyncCmd);
 }
 

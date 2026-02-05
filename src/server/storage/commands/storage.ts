@@ -110,10 +110,9 @@ export async function setupStorageOnServer(
           const result = await storageIntegration.setupOnServer(executor);
 
           if (result.success) {
-            progress.report({ message: 'Complete!', increment: 100 });
-            await vs.window.showInformationMessage(
-              result.message ?? 'Storage setup complete',
-            );
+            progress.report({
+              message: `Setup complete!`,
+            });
           } else {
             throw new Error(result.error ?? result.message ?? 'Unknown error');
           }
@@ -196,10 +195,9 @@ export async function syncStorage(
           const result = await storageIntegration.syncNow(executor);
 
           if (result.success) {
-            progress.report({ message: 'Complete!', increment: 100 });
-            await vs.window.showInformationMessage(
-              result.message ?? 'Sync complete',
-            );
+            progress.report({
+              message: `Complete!`,
+            });
           } else {
             throw new Error(result.error ?? result.message ?? 'Unknown error');
           }
