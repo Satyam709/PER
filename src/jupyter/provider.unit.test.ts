@@ -39,6 +39,7 @@ import {
   VsCodeStub,
 } from '../test/helpers/vscode';
 import { AssignmentChangeEvent, AssignmentManager } from './assignments';
+import { NotebookServerTracker } from './notebook-server-tracker';
 import { ColabJupyterServerProvider } from './provider';
 import { ColabAssignedServer, ColabServerDescriptor } from './servers';
 
@@ -72,6 +73,7 @@ describe('ColabJupyterServerProvider', () => {
   let authChangeEmitter: TestEventEmitter<AuthChangeEvent>;
   let assignmentStub: SinonStubbedInstance<AssignmentManager>;
   let colabClientStub: SinonStubbedInstance<ColabClient>;
+  let notebookStub: SinonStubbedInstance<NotebookServerTracker>;
   let serverPickerStub: SinonStubbedInstance<ServerPicker>;
   let serverProvider: ColabJupyterServerProvider;
 
@@ -153,6 +155,7 @@ describe('ColabJupyterServerProvider', () => {
       value: sinon.stub(),
     });
     colabClientStub = sinon.createStubInstance(ColabClient);
+    notebookStub = sinon.createStubInstance(NotebookServerTracker);
     serverPickerStub = sinon.createStubInstance(ServerPicker);
 
     serverProvider = new ColabJupyterServerProvider(
@@ -162,6 +165,7 @@ describe('ColabJupyterServerProvider', () => {
       colabClientStub,
       serverPickerStub,
       jupyterStub as Partial<Jupyter> as Jupyter,
+      notebookStub,
     );
     await toggleAuthCtxSettled(AuthState.SIGNED_IN);
   });
